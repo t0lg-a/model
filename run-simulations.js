@@ -953,14 +953,16 @@ function buildPollMatrixForDays(modeKey, keys, dateStrs, windowN) {
 /* ========== SEAT DISTRIBUTION HISTOGRAM ========== */
 function buildSeatHistogram(seatSamples, modeKey) {
   // Match the format used by midterm.html for drawSeatSimMini
+  const rules = SEAT_RULES[modeKey];
   if (modeKey === "house") {
-    // House: binned by 12, offset 2
+    // House: binned by 12, offset 2 (matching midterm.html histogramFromSamplesBinned)
     return buildBinnedHistogram(seatSamples, 12, 2);
   } else if (modeKey === "senate") {
-    // Senate: range 44-57
-    return buildRangeHistogram(seatSamples, 44, 57);
+    // Senate: full range from baseD to baseD+upSeats (matching midterm.html histogramFromProbDist)
+    const upSeats = rules.total - rules.baseD - rules.baseR;
+    return buildRangeHistogram(seatSamples, rules.baseD, rules.baseD + upSeats);
   } else {
-    // Governor: range 21-31
+    // Governor: range 21-31 (matching midterm.html histogramFromProbDistRange)
     return buildRangeHistogram(seatSamples, 21, 31);
   }
 }
@@ -1008,20 +1010,31 @@ function buildRangeHistogram(samples, showMin, showMax) {
   return { counts, min: showMin, max: showMax, isProb: false, total, binSize: 1 };
 }
 
-// House districts: analytical tracking for competitive ones (|margin| < 15) to keep file size manageable
+// House districts: analytical tracking for competitive ones to keep file size manageable
 // (Senate/Governor per-state tracking is MC-based, built into runOddsOverTimeState above)
 function computeHouseDistrictOddsOverTime(gbSeries) {
   const ratioKeys = Object.keys(DATA.house.ratios || {}).sort();
   if (!ratioKeys.length || !gbSeries.length) return {};
 
-  // First pass: identify competitive districts (current margin < 15)
-  const competitive = [];
-  for (const did of ratioKeys) {
-    const model = getHouseModel(did);
-    if (!model) continue;
-    if (Math.abs(marginRD(model.combinedPair)) < 15) {
-      competitive.push({ did, ratio: DATA.house.ratios[did] });
+  // Identify competitive districts: check margin at the first, middle, and last GB point.
+  // A district that was competitive at ANY point in the GB series gets tracked.
+  const checkDays = [0, Math.floor(gbSeries.length / 2), gbSeries.length - 1];
+  const competitiveSet = new Set();
+  for (const dayIdx of checkDays) {
+    const gbNat = normalizePair(+gbSeries[dayIdx].dem, +gbSeries[dayIdx].rep);
+    for (const did of ratioKeys) {
+      if (competitiveSet.has(did)) continue;
+      const ratio = DATA.house.ratios[did];
+      if (!ratio) continue;
+      const gbPair = computeGenericBallotState(gbNat, ratio);
+      if (Math.abs(marginRD(gbPair)) < 15) {
+        competitiveSet.add(did);
+      }
     }
+  }
+  const competitive = [];
+  for (const did of competitiveSet) {
+    competitive.push({ did, ratio: DATA.house.ratios[did] });
   }
 
   const result = {};

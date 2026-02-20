@@ -1122,6 +1122,18 @@
       color: var(--muted);
     }
 
+    /* Forecast delta label */
+    .forecastDelta{
+      text-align:center;
+      font-size:11px;
+      font-weight:600;
+      color: var(--muted);
+      padding:4px 8px 0;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
     /* Simulation status bar */
     .simStatusBar{
       display:flex;
@@ -1241,6 +1253,7 @@
       <div class="simMini" aria-label="Seat simulation distribution">
           <canvas class="simCanvas" data-sim-canvas></canvas>
         </div>
+        <div class="forecastDelta" data-forecast-delta hidden></div>
       </div>
     </section>
 
@@ -1297,6 +1310,7 @@
       <div class="simMini" aria-label="Seat simulation distribution">
           <canvas class="simCanvas" data-sim-canvas></canvas>
         </div>
+        <div class="forecastDelta" data-forecast-delta hidden></div>
       </div>
     </section>
 
@@ -1353,6 +1367,7 @@
       <div class="simMini" aria-label="Seat simulation distribution">
           <canvas class="simCanvas" data-sim-canvas></canvas>
         </div>
+        <div class="forecastDelta" data-forecast-delta hidden></div>
       </div>
     </section>
 
@@ -2051,6 +2066,7 @@ function resetOddsWorkers(){
 
 function refreshAllAfterGbChange(){
   // Invalidate pre-computed results (GB filter changed, need fresh computation)
+  // Pre-computed data is baked to a specific GB state and can't be reused after changes.
   SIM_RESULTS_ACTIVE = false;
 
   // clear caches tied to GB series
@@ -2701,9 +2717,10 @@ function hideSimTip(){
 }
 
 function binSeatRange(hist, idx){
+  const bins = hist.counts ? hist.counts.length : 1;
   const span = (hist.max - hist.min) || 1;
-  const loF = hist.min + (idx / hist.bins) * span;
-  const hiF = hist.min + ((idx + 1) / hist.bins) * span;
+  const loF = hist.min + (idx / bins) * span;
+  const hiF = hist.min + ((idx + 1) / bins) * span;
 
   let lo = Math.floor(loF + 1e-9);
   let hi = Math.floor(hiF - 1e-9);
@@ -2772,6 +2789,7 @@ function initUI(mode){
     seatsR: root.querySelector("[data-seats-r]"),
     simCanvas: root.querySelector("[data-sim-canvas]"),
     flips:  root.querySelector("[data-manual-flips]"),
+    deltaLabel: root.querySelector("[data-forecast-delta]"),
 
     // map
     mapHelp: root.querySelector("[data-map-help]"),
@@ -3208,11 +3226,17 @@ function updateSeatMeterFor(modeKey){
   const rules = SEAT_RULES[modeKey];
   if (!ui || !rules) return;
 
-  const tally = computeSeatTally(modeKey, IND_CACHE[modeKey]);
-
-  // Seats (integer display)
-  const d = Math.round(tally.totalD);
-  const r = Math.round(tally.totalR);
+  // Try pre-computed expected seats from daily simulation snapshot
+  const latestSnap = getLatestSnapshot(modeKey);
+  let d, r;
+  if (latestSnap && isFinite(latestSnap.expectedDSeats)) {
+    d = Math.round(latestSnap.expectedDSeats);
+    r = rules.total - d;
+  } else {
+    const tally = computeSeatTally(modeKey, IND_CACHE[modeKey]);
+    d = Math.round(tally.totalD);
+    r = Math.round(tally.totalR);
+  }
 
   if (ui.seatsD) ui.seatsD.textContent = String(d);
   if (ui.seatsR) ui.seatsR.textContent = String(r);
@@ -3230,9 +3254,14 @@ function updateSeatMeterFor(modeKey){
   if (ui.pillD) ui.pillD.textContent = (probs.pD * 100).toFixed(1);
   if (ui.pillR) ui.pillR.textContent = (probs.pR * 100).toFixed(1);
 
+  // Forecast delta badge (if we have multiple daily snapshots)
+  const deltaText = buildForecastDelta(modeKey);
+  if (ui.deltaLabel) ui.deltaLabel.textContent = deltaText || "";
+  if (ui.deltaLabel) ui.deltaLabel.hidden = !deltaText;
+
   // Tiny seat simulation histogram under the seat totals
   if (ui.simCanvas){
-    const thr = (modeKey === "senate") ? SENATE_CONTROL_RULE.demAtLeast : (modeKey === "governor") ? 25 : rules.majorityLine;
+    const thr = (modeKey === "senate") ? SENATE_CONTROL_RULE.demAtLeast : rules.majorityLine;
     ui._lastHist = probs.hist || null;
     ui._lastMaj = thr;
 
@@ -3249,6 +3278,32 @@ function updateSeatMeterFor(modeKey){
       if (ctx) ctx.clearRect(0,0,ui.simCanvas.width, ui.simCanvas.height);
     }
   }
+}
+
+function getLatestSnapshot(modeKey){
+  if (!SIM_RESULTS_ACTIVE || !SIM_RESULTS?.history?.length) return null;
+  return SIM_RESULTS.history[SIM_RESULTS.history.length - 1][modeKey] || null;
+}
+
+function getPrecomputedMargin(modeKey, key){
+  const snap = getLatestSnapshot(modeKey);
+  if (!snap?.perState) return undefined;
+  const ps = snap.perState[key];
+  return (ps && isFinite(ps.margin)) ? ps.margin : undefined;
+}
+
+function buildForecastDelta(modeKey){
+  if (!SIM_RESULTS_ACTIVE || !SIM_RESULTS?.history || SIM_RESULTS.history.length < 2) return null;
+  const curr = SIM_RESULTS.history[SIM_RESULTS.history.length - 1][modeKey];
+  const prev = SIM_RESULTS.history[SIM_RESULTS.history.length - 2][modeKey];
+  if (!curr || !prev) return null;
+
+  const pDelta = ((curr.pDem - prev.pDem) * 100);
+  const sDelta = curr.expectedDSeats - prev.expectedDSeats;
+  if (Math.abs(pDelta) < 0.05 && Math.abs(sDelta) < 0.05) return null;
+
+  const sign = (v) => v >= 0 ? "+" : "";
+  return `${sign(pDelta)}${pDelta.toFixed(1)}pp D ctrl · ${sign(sDelta)}${sDelta.toFixed(1)} seats since ${prev.date || "prev"}`;
 }
 
 function getPrecomputedChamberProbs(modeKey){
@@ -3434,15 +3489,19 @@ function recolorMapForMode(modeKey){
         return;
       }
 
-      const model = getHouseModel(did);
-      if (!model){
-        this.removeAttribute("display");
-        this.style.fill = "#e5e7eb";
-        this.classList.add("filtered");
-        return;
+      // Try pre-computed margin first
+      let mm = getPrecomputedMargin("house", did);
+      if (mm === undefined) {
+        const model = getHouseModel(did);
+        if (!model){
+          this.removeAttribute("display");
+          this.style.fill = "#e5e7eb";
+          this.classList.add("filtered");
+          return;
+        }
+        mm = marginRD(model.combinedPair);
       }
 
-      const mm = marginRD(model.combinedPair);
       this.removeAttribute("display");
       this.classList.remove("filtered");
       this.style.fill = interpColor(mm);
@@ -3464,16 +3523,20 @@ function recolorMapForMode(modeKey){
 
     this.classList.add("active");
 
-    const model = getStateModel(modeKey, st, IND_CACHE[modeKey]);
-    if (!model){
-      this.removeAttribute("display");
-      this.style.fill = "#e5e7eb";
-      this.setAttribute("fill", "#e5e7eb");
-      this.classList.add("filtered");
-      return;
+    // Try pre-computed margin first
+    let mm = getPrecomputedMargin(modeKey, st);
+    if (mm === undefined) {
+      const model = getStateModel(modeKey, st, IND_CACHE[modeKey]);
+      if (!model){
+        this.removeAttribute("display");
+        this.style.fill = "#e5e7eb";
+        this.setAttribute("fill", "#e5e7eb");
+        this.classList.add("filtered");
+        return;
+      }
+      mm = marginRD(model.combinedPair);
     }
 
-    const mm = marginRD(model.combinedPair);
     this.removeAttribute("display");
     this.classList.remove("filtered");
     this.style.fill = interpColor(mm);
@@ -3493,12 +3556,15 @@ function renderBucketTableForMode(modeKey){
   for (const k of BUCKET_ORDER) buckets[k] = [];
 
   for (const key of Object.keys(ratios)){
-    const model = (modeKey === "house")
-      ? getHouseModel(key)
-      : getStateModel(modeKey, key, IND_CACHE[modeKey]);
-    if (!model) continue;
-
-    const mm = marginRD(model.combinedPair);
+    // Try pre-computed margin first (avoids recomputing all state models)
+    let mm = getPrecomputedMargin(modeKey, key);
+    if (mm === undefined) {
+      const model = (modeKey === "house")
+        ? getHouseModel(key)
+        : getStateModel(modeKey, key, IND_CACHE[modeKey]);
+      if (!model) continue;
+      mm = marginRD(model.combinedPair);
+    }
     const bKey = bucketKeyFromMargin(mm);
     if (!bKey) continue;
 
