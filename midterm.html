@@ -1206,11 +1206,16 @@
       justify-content:flex-end;
     }
     .gbMeta .sep{ opacity:0.6; }
+    #bootOverlay.done{ opacity:0; pointer-events:none; }
 
 </style>
 </head>
 
 <body>
+  <div id="bootOverlay" style="position:fixed;inset:0;z-index:9999;background:var(--bg-app,#fff);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .3s">
+    <div style="font-family:var(--sans);font-size:18px;font-weight:600;color:var(--ink)">Loading forecast data&hellip;</div>
+    <div id="bootProgress" style="font-family:var(--mono);font-size:13px;color:var(--muted)"></div>
+  </div>
   <div class="wrap">
     <div id="loadError" class="loadError" hidden></div>
 
@@ -3324,14 +3329,18 @@ function getPrecomputedChamberProbs(modeKey){
 
 /* ---------- Map (per mode) ---------- */
 let STATE_GEO = null;
+let _stateGeoP = null;
 let HOUSE_SVG_TEXT = null;
 
 async function loadStateGeo(){
   if (STATE_GEO) return STATE_GEO;
-  const topo = await fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(r=>r.json());
-  const geo = topojson.feature(topo, topo.objects.states);
-  STATE_GEO = geo;
-  return STATE_GEO;
+  if (!_stateGeoP) {
+    _stateGeoP = fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json")
+      .then(r => { if (!r.ok) throw new Error(`CDN HTTP ${r.status}`); return r.json(); })
+      .then(topo => { STATE_GEO = topojson.feature(topo, topo.objects.states); return STATE_GEO; })
+      .catch(err => { console.error("Failed to load US state geometry from CDN:", err.message); _stateGeoP = null; return null; });
+  }
+  return _stateGeoP;
 }
 
 async function initMapForMode(modeKey){
@@ -3344,6 +3353,15 @@ async function initMapForMode(modeKey){
 
 async function initStateMapForMode(modeKey, ui){
   const geo = await loadStateGeo();
+  if (!geo) {
+    console.warn(`Cannot render ${modeKey} map: state geometry unavailable (CDN unreachable?)`);
+    const svg = d3.select(ui.svgEl);
+    svg.attr("viewBox", "0 0 960 600");
+    svg.append("text").attr("x",480).attr("y",300).attr("text-anchor","middle")
+      .style("font-family","var(--sans)").style("fill","var(--muted)")
+      .text("Map unavailable (CDN unreachable)");
+    return;
+  }
   const features = geo.features;
 
   const width = 960, height = 600;
@@ -4655,52 +4673,67 @@ function applyPrecomputedOdds(){
 
 /* ---------- Boot ---------- */
 (async function boot(){
-  const ok = await loadCSV();
-  if (!ok) return;
+  const overlay = document.getElementById("bootOverlay");
+  const progress = document.getElementById("bootProgress");
+  const setProgress = msg => { if (progress) progress.textContent = msg; };
 
-  const okHouse = await loadHouseRatios();
-  if (!okHouse) return;
+  // Phase 1: Fetch all 5 data sources in parallel
+  setProgress("Fetching data files\u2026");
+  const [csvOk, houseOk, gbResult, stateOk, simOk] = await Promise.all([
+    loadCSV(),
+    loadHouseRatios(),
+    loadGenericBallotFromPollsJSON(),
+    loadStatePollsByDateCSV(),
+    loadSimulationResults(),
+  ]);
 
-  // Generic ballot from polls.json (produced by poll.html)
-  await loadGenericBallotFromPollsJSON();
+  if (!csvOk || !houseOk) {
+    setProgress("Failed to load required CSV files.");
+    return;
+  }
+
+  // Phase 2: Synchronous dependent computations (order matters)
+  setProgress("Processing poll data\u2026");
   setupGbControlsUI();
-
-  // Optional: manual state polls by date (state_polls_by_date.csv)
-  await loadStatePollsByDateCSV();
   applyLatestStatePollsToData();
-  // cache indicators per mode (House intentionally has none)
   IND_CACHE.senate = computeIndicatorNationalFromPolls("senate");
   IND_CACHE.governor = computeIndicatorNationalFromPolls("governor");
   IND_CACHE.house = null;
 
-  // init all panels
-  for (const mode of MODES){
-    initUI(mode);
-  }
+  // Phase 3: Init UI panels (sync, cheap)
+  for (const mode of MODES) initUI(mode);
+  for (const mode of MODES) setupOddsUI(mode);
 
-  // Odds chart controls
-  for (const mode of MODES){
-    setupOddsUI(mode);
-  }
-  // Load pre-computed simulation results BEFORE maps/meters so data is available
-  const hasPrecomputed = await loadSimulationResults();
+  const hasPrecomputed = !!simOk;
   updateSimStatusBar(hasPrecomputed);
 
+  // Phase 4: Init maps (senate + governor in parallel, then house)
+  setProgress("Rendering maps\u2026");
+  await Promise.all([
+    initMapForMode("senate"),
+    initMapForMode("governor"),
+  ]);
+  await initMapForMode("house");
+
   for (const mode of MODES){
-    await initMapForMode(mode);
     recolorMapForMode(mode);
     renderBucketTableForMode(mode);
-    updateSeatMeterFor(mode); // uses pre-computed probs if available
+    updateSeatMeterFor(mode);
   }
 
+  // Phase 5: Render odds charts
   if (hasPrecomputed){
-    // Use pre-computed odds-over-time data (no heavy simulation on page load)
     applyPrecomputedOdds();
   } else {
-    // Fallback: run simulations in-browser (original behavior)
     runOddsOverTime("senate", "all");
     runOddsOverTime("governor", "all");
     runOddsOverTime("house", "all");
+  }
+
+  // Phase 6: Remove loading overlay
+  if (overlay) {
+    overlay.classList.add("done");
+    setTimeout(() => overlay.remove(), 400);
   }
 
   // Redraw tiny histograms on resize (canvas depends on CSS pixels)
