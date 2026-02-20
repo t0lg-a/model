@@ -2421,6 +2421,7 @@ function tipSparkHTML(){
       <div class="tipSparkTitle">
         <span>P(D win) over time</span>
         <span class="mono" id="tipSparkVal">—</span>
+        <span class="mono" id="tipSparkSrc" style="font-size:9px;opacity:0.5;margin-left:4px"></span>
       </div>
       <canvas id="tipSpark" aria-hidden="false"></canvas>
     </div>
@@ -2559,10 +2560,12 @@ function getPrecomputedStateSparkline(modeKey, key){
 function renderTipSpark(modeKey, key, cachedIndNat){
   const canvas = document.getElementById("tipSpark");
   const label = document.getElementById("tipSparkVal");
+  const srcLabel = document.getElementById("tipSparkSrc");
   if (!canvas) return;
 
   // Try pre-computed per-state sparkline first
   let vals = getPrecomputedStateSparkline(modeKey, key);
+  let isPrecomputed = !!vals;
 
   if (!vals) {
     // Fallback: compute on-the-fly from GB series
@@ -2582,6 +2585,15 @@ function renderTipSpark(modeKey, key, cachedIndNat){
     label.textContent = `Latest ${Math.round(last*100)}%`;
   } else if (label){
     label.textContent = "—";
+  }
+
+  if (srcLabel){
+    if (isPrecomputed){
+      const isMC = (modeKey === "senate" || modeKey === "governor");
+      srcLabel.textContent = isMC ? `${(SIM_RESULTS?.simsPerDay||10000).toLocaleString()} MC sims` : "analytical";
+    } else {
+      srcLabel.textContent = "live";
+    }
   }
 
   let drawVals = vals;
@@ -2632,12 +2644,13 @@ function showTooltip(evt, modeKey, key, cachedIndNat){
   else { probDot.classList.remove("blue"); probDot.classList.remove("red"); }
 
   tip.classList.toggle("compact", TOOLTIP_COMPACT);
-  tipSliders.innerHTML = detail.body + ((GB_SRC.series && GB_SRC.series.length) ? tipSparkHTML() : "");
+  const hasSparkData = (GB_SRC.series && GB_SRC.series.length) || getPrecomputedStateSparkline(modeKey, key);
+  tipSliders.innerHTML = detail.body + (hasSparkData ? tipSparkHTML() : "");
 
   tip.style.transform = "translate(0,0)";
   positionTooltip(evt);
 
-  if (GB_SRC.series && GB_SRC.series.length){
+  if (hasSparkData){
     requestAnimationFrame(()=>renderTipSpark(modeKey, key, cachedIndNat));
   }
 }
