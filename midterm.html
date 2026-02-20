@@ -1223,7 +1223,7 @@
         <div class="oddsMiniTitle">Probability and seat totals over time</div>
         <svg class="comboSvg" data-combo-svg aria-label="Control odds and expected seats over time chart"></svg>
       </div>
-
+      <div class="oddsStatus" data-odds-status></div>
     </section>
   </section>
 
@@ -1279,7 +1279,7 @@
         <div class="oddsMiniTitle">Probability and seat totals over time</div>
         <svg class="comboSvg" data-combo-svg aria-label="Control odds and expected seats over time chart"></svg>
       </div>
-
+      <div class="oddsStatus" data-odds-status></div>
     </section>
   </section>
 
@@ -1336,7 +1336,7 @@
         <div class="oddsMiniTitle">Probability and seat totals over time</div>
         <svg class="comboSvg" data-combo-svg aria-label="Control odds and expected seats over time chart"></svg>
       </div>
-
+      <div class="oddsStatus" data-odds-status></div>
     </section>
   </section>
 
@@ -4414,6 +4414,46 @@ function setupOddsUI(modeKey){
   // controls removed; charts auto-run on load
 }
 
+/* ---------- Pre-computed simulation results (from run-simulations.js) ---------- */
+let SIM_RESULTS = null; // loaded from simulation_results.json
+
+async function loadSimulationResults(){
+  try{
+    const resp = await fetch("simulation_results.json", {cache:"no-store"});
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const j = await resp.json();
+    if (j && j.oddsOverTime) {
+      SIM_RESULTS = j;
+      console.log(`Loaded pre-computed simulation results (last run: ${j.lastRunDate || "unknown"}, ${j.history?.length || 0} daily snapshots)`);
+      return true;
+    }
+    return false;
+  }catch(err){
+    console.warn("simulation_results.json not available, will compute on-the-fly:", err.message);
+    return false;
+  }
+}
+
+function applyPrecomputedOdds(){
+  if (!SIM_RESULTS || !SIM_RESULTS.oddsOverTime) return false;
+  const oot = SIM_RESULTS.oddsOverTime;
+  let applied = 0;
+  for (const mode of MODES){
+    const data = oot[mode];
+    if (data && data.length > 0){
+      renderComboChart(mode, data);
+      const ui = UI[mode];
+      const statusParts = [`Pre-computed • ${data.length} points`];
+      if (SIM_RESULTS.simsPerDay) statusParts.push(`${SIM_RESULTS.simsPerDay.toLocaleString()} sims/day`);
+      if (SIM_RESULTS.lastRunDate) statusParts.push(`Run: ${SIM_RESULTS.lastRunDate}`);
+      if (GB_SRC.windowPolls) statusParts.push(`GB window: last ${GB_SRC.windowPolls} polls`);
+      setOddsStatus(mode, statusParts.join(" • "));
+      applied++;
+    }
+  }
+  return applied === MODES.length;
+}
+
 /* ---------- Boot ---------- */
 (async function boot(){
   const ok = await loadCSV();
@@ -4450,11 +4490,17 @@ function setupOddsUI(modeKey){
     updateSeatMeterFor(mode);
   }
 
-  // Auto-run House odds over time (All)
-  runOddsOverTime("senate", "all");
-  runOddsOverTime("governor", "all");
-  runOddsOverTime("house", "all");
-
+  // Try to load pre-computed simulation results first (produced by run-simulations.js)
+  const hasPrecomputed = await loadSimulationResults();
+  if (hasPrecomputed){
+    // Use pre-computed odds-over-time data (no heavy simulation on page load)
+    applyPrecomputedOdds();
+  } else {
+    // Fallback: run simulations in-browser (original behavior)
+    runOddsOverTime("senate", "all");
+    runOddsOverTime("governor", "all");
+    runOddsOverTime("house", "all");
+  }
 
   // Redraw tiny histograms on resize (canvas depends on CSS pixels)
   window.addEventListener("resize", ()=>{
