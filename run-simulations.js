@@ -1280,6 +1280,33 @@ function main() {
   existing.gbWindowPolls = GB_WINDOW_POLLS;
   existing.gbFilterStrict = true; // run-simulations.js always uses strict allowlist
 
+  // Validate results before writing
+  const validationErrors = [];
+  for (const mode of ["senate", "governor", "house"]) {
+    const r = snapshot[mode];
+    if (!r) { validationErrors.push(`Missing ${mode} results`); continue; }
+    const pSum = r.pDem + r.pRep;
+    if (Math.abs(pSum - 1.0) > 0.01) {
+      validationErrors.push(`${mode}: pDem(${r.pDem}) + pRep(${r.pRep}) = ${pSum}, expected ~1.0`);
+    }
+    const rules = SEAT_RULES[mode];
+    if (r.expectedDSeats < 0 || r.expectedDSeats > rules.total) {
+      validationErrors.push(`${mode}: expectedDSeats ${r.expectedDSeats} outside [0, ${rules.total}]`);
+    }
+    if (r.seatDistribution) {
+      const histSum = Object.values(r.seatDistribution).reduce((a, b) => a + b, 0);
+      if (Math.abs(histSum - 1.0) > 0.05) {
+        validationErrors.push(`${mode}: seatDistribution sums to ${histSum}, expected ~1.0`);
+      }
+    }
+  }
+  if (validationErrors.length > 0) {
+    console.error("\nVALIDATION ERRORS:");
+    for (const e of validationErrors) console.error(`  - ${e}`);
+    console.error("Results NOT saved due to validation failures.");
+    process.exit(1);
+  }
+
   // Write output (compact JSON to minimize file size for browser loading)
   fs.writeFileSync(RESULTS_FILE, JSON.stringify(existing));
   const senateStateCount = Object.keys(senateOddsResult.perState).length;
