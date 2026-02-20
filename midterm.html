@@ -1589,7 +1589,7 @@ function toNum(v){
 async function loadCSV(){
   const errBox = document.getElementById("loadError");
   try{
-    const csvText = await fetch("entries_all.csv", {cache:"no-store"}).then(r=>{
+    const csvText = await fetch("entries_all.csv", {cache:"no-cache"}).then(r=>{
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.text();
     });
@@ -1651,7 +1651,7 @@ async function loadCSV(){
 async function loadHouseRatios(){
   const errBox = document.getElementById("loadError");
   try{
-    const csvText = await fetch("house_district_ratios_filled.csv", {cache:"no-store"}).then(r=>{
+    const csvText = await fetch("house_district_ratios_filled.csv", {cache:"no-cache"}).then(r=>{
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.text();
     });
@@ -1755,7 +1755,7 @@ async function loadStatePollsByDateCSV(){
   }
 
   try{
-    const resp = await fetch(STATE_POLL_SRC.file, {cache:"no-store"});
+    const resp = await fetch(STATE_POLL_SRC.file, {cache:"no-cache"});
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const txt = await resp.text();
     const rows = d3.csvParse(txt);
@@ -2031,7 +2031,7 @@ const GB_SRC = { windowPolls: 24, series: null, latest: null, updatedAt: null, f
 
 async function loadGenericBallotFromPollsJSON(){
   try{
-    const j = await fetch("polls.json", {cache:"no-store"}).then(r=>{
+    const j = await fetch("polls.json", {cache:"no-cache"}).then(r=>{
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     });
@@ -3416,7 +3416,7 @@ async function initHouseMapForMode(ui){
   const gRoot = svg.append("g");
 
   if (!HOUSE_SVG_TEXT){
-    HOUSE_SVG_TEXT = await fetch("house.svg", {cache:"no-store"}).then(r=>{
+    HOUSE_SVG_TEXT = await fetch("house.svg", {cache:"no-cache"}).then(r=>{
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.text();
     });
@@ -4598,7 +4598,7 @@ let SIM_RESULTS_ACTIVE = true; // set to false when user changes GB filter (inva
 
 async function loadSimulationResults(){
   try{
-    const resp = await fetch("simulation_results.json", {cache:"no-store"});
+    const resp = await fetch("simulation_results.json", {cache:"no-cache"});
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const j = await resp.json();
     if (j && j.oddsOverTime) {
