@@ -223,8 +223,14 @@ function houseDistrictCode(usps, cd) {
 
 function loadEntriesCSV() {
   const csvPath = path.join(__dirname, "entries_all.csv");
+  if (!fs.existsSync(csvPath)) {
+    throw new Error(`Required file not found: ${csvPath}\nRun fetch-data.js first to generate input files.`);
+  }
   const text = fs.readFileSync(csvPath, "utf-8");
   const rows = parseCSV(text);
+  if (rows.length < 5) {
+    throw new Error(`entries_all.csv has only ${rows.length} rows (expected 30+). File may be corrupt.`);
+  }
 
   for (const row of rows) {
     const mode = String(row.mode || "").trim().toLowerCase();
@@ -259,8 +265,14 @@ function loadEntriesCSV() {
 
 function loadHouseRatios() {
   const csvPath = path.join(__dirname, "house_district_ratios_filled.csv");
+  if (!fs.existsSync(csvPath)) {
+    throw new Error(`Required file not found: ${csvPath}\nRun fetch-data.js first to generate input files.`);
+  }
   const text = fs.readFileSync(csvPath, "utf-8");
   const rows = parseCSV(text);
+  if (rows.length < 100) {
+    throw new Error(`house_district_ratios_filled.csv has only ${rows.length} rows (expected 435). File may be corrupt.`);
+  }
 
   for (const row of rows) {
     // CSV columns: path_id, state_name, congressional_district_number, d_ratio, r_ratio
@@ -1173,6 +1185,16 @@ function main() {
   console.log("Loading state_polls_by_date.csv...");
   loadStatePollsByDate();
   applyLatestStatePollsToData();
+
+  // Validate loaded data
+  const senateStates = Object.keys(DATA.senate.ratios).length;
+  const govStates = Object.keys(DATA.governor.ratios).length;
+  const houseDistricts = Object.keys(DATA.house.ratios).length;
+  if (senateStates < 10) throw new Error(`Only ${senateStates} senate states loaded (expected 33+). Check entries_all.csv.`);
+  if (govStates < 10) throw new Error(`Only ${govStates} governor states loaded (expected 11+). Check entries_all.csv.`);
+  if (houseDistricts < 200) throw new Error(`Only ${houseDistricts} house districts loaded (expected 435). Check house_district_ratios_filled.csv.`);
+  if (!gbSeries.length) throw new Error("Generic ballot series is empty. Check polls.json.");
+  console.log(`  Loaded: ${senateStates} senate, ${govStates} governor, ${houseDistricts} house districts`);
 
   // Compute indicator caches
   const indSenate = computeIndicatorNationalFromPolls("senate");
