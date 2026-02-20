@@ -1241,6 +1241,8 @@ function main() {
   existing.lastRunDate = today;
   existing.gbSeriesLength = gbSeries.length;
   existing.simsPerDay = NUM_SIMS;
+  existing.gbWindowPolls = GB_WINDOW_POLLS;
+  existing.gbFilterStrict = true; // run-simulations.js always uses strict allowlist
 
   // Write output (compact JSON to minimize file size for browser loading)
   fs.writeFileSync(RESULTS_FILE, JSON.stringify(existing));

@@ -2070,8 +2070,7 @@ function resetOddsWorkers(){
 }
 
 function refreshAllAfterGbChange(){
-  // Invalidate pre-computed results (GB filter changed, need fresh computation)
-  // Pre-computed data is baked to a specific GB state and can't be reused after changes.
+  // Temporarily disable pre-computed results while recomputing
   SIM_RESULTS_ACTIVE = false;
 
   // clear caches tied to GB series
@@ -2079,14 +2078,31 @@ function refreshAllAfterGbChange(){
 
   buildGbSeriesFromRaw();
 
-  // refresh maps + tables
+  // Check if current GB params now match the pre-computed params
+  if (SIM_RESULTS && SIM_RESULTS.gbWindowPolls !== undefined) {
+    const paramsMatch =
+      GB_SRC.windowPolls === SIM_RESULTS.gbWindowPolls &&
+      GB_SRC.filterStrict === (SIM_RESULTS.gbFilterStrict !== false);
+
+    if (paramsMatch) {
+      SIM_RESULTS_ACTIVE = true;
+      applyPrecomputedOdds();
+      for (const mode of MODES){
+        try{ recolorMapForMode(mode); }catch(e){}
+        try{ renderBucketTableForMode(mode); }catch(e){}
+        try{ updateSeatMeterFor(mode); }catch(e){}
+      }
+      return; // skip expensive re-simulation
+    }
+  }
+
+  // GB params don't match pre-computed: refresh with live computation
   for (const mode of MODES){
     try{ recolorMapForMode(mode); }catch(e){}
     try{ renderBucketTableForMode(mode); }catch(e){}
     try{ updateSeatMeterFor(mode); }catch(e){}
   }
 
-  // rerun odds charts
   resetOddsWorkers();
   for (const mode of MODES){
     try{ runOddsOverTime(mode, ODDS_RANGE?.[mode] || "all"); }catch(e){}
