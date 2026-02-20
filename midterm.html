@@ -2571,10 +2571,19 @@ function getPrecomputedStateSparkline(modeKey, key){
   // Try to get pre-computed per-state odds-over-time from simulation_results.json
   if (!SIM_RESULTS_ACTIVE || !SIM_RESULTS || !SIM_RESULTS.stateOddsOverTime) return null;
   const modeData = SIM_RESULTS.stateOddsOverTime[modeKey];
-  if (!modeData || !modeData[key]) return null;
+  if (!modeData) return null;
+
+  // Columnar format (v1): { dates: [...], states: { KEY: { s, p, m } or { i, p, m } } }
+  if (modeData.dates && modeData.states) {
+    const st = modeData.states[key];
+    if (!st || !st.p || !st.p.length) return null;
+    return st.p; // pDem array is already what we need
+  }
+
+  // Legacy format: { KEY: [{date, pDem, margin}, ...] }
+  if (!modeData[key]) return null;
   const stateOdds = modeData[key];
   if (!stateOdds || !stateOdds.length) return null;
-  // Extract just the pDem values (matching computeWinProbSeries output)
   return stateOdds.map(d => d.pDem);
 }
 
@@ -4630,12 +4639,17 @@ function updateSimStatusBar(hasPrecomputed){
   const lastRun = SIM_RESULTS.lastRunDate || "unknown";
   const sims = SIM_RESULTS.simsPerDay ? SIM_RESULTS.simsPerDay.toLocaleString() : "10,000";
   const histLen = SIM_RESULTS.history?.length || 0;
+  function _oddsKeyCount(modeData) {
+    if (!modeData) return 0;
+    if (modeData.states) return Object.keys(modeData.states).length; // columnar-v1
+    return Object.keys(modeData).length; // legacy
+  }
   const stateCount = SIM_RESULTS.stateOddsOverTime
-    ? Object.keys(SIM_RESULTS.stateOddsOverTime.senate || {}).length
-      + Object.keys(SIM_RESULTS.stateOddsOverTime.governor || {}).length
+    ? _oddsKeyCount(SIM_RESULTS.stateOddsOverTime.senate)
+      + _oddsKeyCount(SIM_RESULTS.stateOddsOverTime.governor)
     : 0;
   const districtCount = SIM_RESULTS.stateOddsOverTime
-    ? Object.keys(SIM_RESULTS.stateOddsOverTime.house || {}).length
+    ? _oddsKeyCount(SIM_RESULTS.stateOddsOverTime.house)
     : 0;
 
   // Check staleness (> 2 days old)

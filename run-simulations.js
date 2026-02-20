@@ -1100,6 +1100,46 @@ function downsampleStateOdds(stateOddsMap) {
   return result;
 }
 
+/* ========== COLUMNAR ENCODING ========== */
+// Convert per-state odds from [{date, pDem, margin}, ...] to a columnar format
+// with a shared dates array. Reduces JSON size by ~75% by eliminating repeated date strings.
+function encodeStateOddsColumnar(stateOddsMap) {
+  // Collect all unique dates across all states/districts
+  const allDates = new Set();
+  for (const [key, arr] of Object.entries(stateOddsMap)) {
+    for (const entry of arr) allDates.add(entry.date);
+  }
+  const dates = [...allDates].sort();
+  const dateIndex = Object.fromEntries(dates.map((d, i) => [d, i]));
+
+  // Build columnar representation per state
+  const states = {};
+  for (const [key, arr] of Object.entries(stateOddsMap)) {
+    const indices = [];
+    const pDem = [];
+    const margin = [];
+    for (const entry of arr) {
+      indices.push(dateIndex[entry.date]);
+      pDem.push(entry.pDem);
+      margin.push(entry.margin);
+    }
+
+    // Dense (sequential) states: store start index + arrays
+    // Sparse (downsampled with gaps): store full index array
+    const isDense = indices.length > 0 &&
+      indices.length === (indices[indices.length - 1] - indices[0] + 1) &&
+      indices.every((v, i) => i === 0 || v === indices[i - 1] + 1);
+
+    if (isDense) {
+      states[key] = { s: indices[0], p: pDem, m: margin };
+    } else {
+      states[key] = { i: indices, p: pDem, m: margin };
+    }
+  }
+
+  return { dates, states };
+}
+
 /* ========== MAIN ========== */
 function main() {
   const today = isoDate(new Date());
@@ -1188,12 +1228,13 @@ function main() {
   };
 
   // Per-state/district odds over time (MC-based for Senate/Gov, analytical for House)
-  // Downsample flat/non-competitive states to save space
+  // Downsample flat/non-competitive states, then encode columnar to save space
   existing.stateOddsOverTime = {
-    senate: downsampleStateOdds(senateOddsResult.perState),
-    governor: downsampleStateOdds(governorOddsResult.perState),
-    house: downsampleStateOdds(houseDistrictOdds),
+    senate: encodeStateOddsColumnar(downsampleStateOdds(senateOddsResult.perState)),
+    governor: encodeStateOddsColumnar(downsampleStateOdds(governorOddsResult.perState)),
+    house: encodeStateOddsColumnar(downsampleStateOdds(houseDistrictOdds)),
   };
+  existing.stateOddsFormat = "columnar-v1";
 
   // Add metadata
   existing.lastUpdated = new Date().toISOString();
