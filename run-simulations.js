@@ -78,6 +78,20 @@ function winProbD_fast(m) {
   return WINP_PD_TABLE[idx] ?? 0.5;
 }
 
+// Swing-integrated win probability for house districts.
+// Averages winProbD_fast over a +-7pt uniform national swing, matching the
+// uncertainty model in runOddsOverTimeHouse (line 744) instead of using a
+// static CDF which makes competitive districts appear overconfident.
+function winProbD_swingIntegrated(margin) {
+  const range = HOUSE_MC_SWING_RANGE_PTS;
+  let sum = 0, n = 0;
+  for (let s = -range; s <= range + 1e-9; s += 0.1) {
+    sum += winProbD_fast(margin + s);
+    n++;
+  }
+  return sum / n;
+}
+
 function median(arr) {
   const a = arr.filter(x => isFinite(x)).slice().sort((x, y) => x - y);
   const n = a.length;
@@ -1049,7 +1063,7 @@ function computeHouseDistrictOddsOverTime(gbSeries) {
     for (const { did, ratio } of competitive) {
       const gbPair = computeGenericBallotState(gbNat, ratio);
       const margin = marginRD(gbPair);
-      const pDem = winProbFromMargin(margin).pD;
+      const pDem = winProbD_swingIntegrated(margin);
 
       result[did].push({
         date: dateStr,
