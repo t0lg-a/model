@@ -576,12 +576,16 @@ function runHouseSimulation() {
     idx++;
   }
 
+  // Seat distribution histogram (binned by 12, offset 2 like original)
+  const seatDist = buildSeatHistogram(seatSamples, "house");
+
   return {
     pDem: +(demControl / NUM_SIMS).toFixed(4),
     pRep: +((NUM_SIMS - demControl) / NUM_SIMS).toFixed(4),
     expectedDSeats: +(Array.from(seatSamples).reduce((a, b) => a + b, 0) / NUM_SIMS).toFixed(1),
     sims: NUM_SIMS,
     perState: perDistrict,
+    seatDistribution: seatDist,
   };
 }
 
@@ -632,12 +636,15 @@ function runSenateSimulation(cachedIndNat) {
     idx++;
   }
 
+  const seatDist = buildSeatHistogram(seatSamples, "senate");
+
   return {
     pDem: +(demControl / NUM_SIMS).toFixed(4),
     pRep: +((NUM_SIMS - demControl) / NUM_SIMS).toFixed(4),
     expectedDSeats: +(Array.from(seatSamples).reduce((a, b) => a + b, 0) / NUM_SIMS).toFixed(1),
     sims: NUM_SIMS,
     perState,
+    seatDistribution: seatDist,
   };
 }
 
@@ -688,12 +695,15 @@ function runGovernorSimulation(cachedIndNat) {
     idx++;
   }
 
+  const seatDist = buildSeatHistogram(seatSamples, "governor");
+
   return {
     pDem: +(demControl / NUM_SIMS).toFixed(4),
     pRep: +((NUM_SIMS - demControl) / NUM_SIMS).toFixed(4),
     expectedDSeats: +(Array.from(seatSamples).reduce((a, b) => a + b, 0) / NUM_SIMS).toFixed(1),
     sims: NUM_SIMS,
     perState,
+    seatDistribution: seatDist,
   };
 }
 
@@ -923,6 +933,159 @@ function buildPollMatrixForDays(modeKey, keys, dateStrs, windowN) {
   return { pollDDay, pollRDay, nStates, nDays };
 }
 
+/* ========== SEAT DISTRIBUTION HISTOGRAM ========== */
+function buildSeatHistogram(seatSamples, modeKey) {
+  // Match the format used by midterm.html for drawSeatSimMini
+  if (modeKey === "house") {
+    // House: binned by 12, offset 2
+    return buildBinnedHistogram(seatSamples, 12, 2);
+  } else if (modeKey === "senate") {
+    // Senate: range 44-57
+    return buildRangeHistogram(seatSamples, 44, 57);
+  } else {
+    // Governor: range 21-31
+    return buildRangeHistogram(seatSamples, 21, 31);
+  }
+}
+
+function buildBinnedHistogram(samples, binSize, binOffset) {
+  binSize = Math.max(1, Math.floor(binSize || 1));
+  binOffset = Math.floor(binOffset || 0);
+
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.floor(samples[i]);
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (!isFinite(min) || !isFinite(max)) { min = 0; max = 0; }
+
+  const toBinStart = (v) => Math.floor((v - binOffset) / binSize) * binSize + binOffset;
+  const minB = toBinStart(min);
+  const maxB = toBinStart(max);
+  const n = Math.max(1, Math.floor((maxB - minB) / binSize) + 1);
+  const counts = new Array(n).fill(0);
+  const total = samples.length || 1;
+
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.floor(samples[i]);
+    const b = toBinStart(v);
+    const idx = Math.floor((b - minB) / binSize);
+    if (idx >= 0 && idx < n) counts[idx]++;
+  }
+
+  return { counts, min: minB, max: (minB + (n - 1) * binSize + (binSize - 1)), isProb: false, total, binSize, binOffset };
+}
+
+function buildRangeHistogram(samples, showMin, showMax) {
+  showMin = Math.floor(showMin);
+  showMax = Math.floor(showMax);
+  const counts = new Array(showMax - showMin + 1).fill(0);
+  const total = samples.length || 1;
+
+  for (let i = 0; i < samples.length; i++) {
+    const v = Math.floor(samples[i]);
+    if (v < showMin || v > showMax) continue;
+    counts[v - showMin]++;
+  }
+  return { counts, min: showMin, max: showMax, isProb: false, total, binSize: 1 };
+}
+
+/* ========== PER-STATE ODDS OVER TIME (analytical, no MC needed) ========== */
+// For each day in the GB series, compute each state's win probability analytically.
+// This is the same as what midterm.html's computeWinProbSeries does for sparklines.
+function computeStateOddsOverTime(modeKey, gbSeries, cachedIndNat) {
+  const ratioKeys = Object.keys(DATA[modeKey]?.ratios || {}).sort();
+  const n = ratioKeys.length;
+  if (!n || !gbSeries.length) return {};
+
+  // Pre-extract static poll and indicator data per state
+  const stateData = ratioKeys.map(st => {
+    const ratio = DATA[modeKey].ratios[st];
+    const pollRaw = DATA[modeKey].polls[st];
+    const pollPair = computePollState(pollRaw);
+    const indPair = cachedIndNat ? computeIndicatorState(cachedIndNat, ratio) : null;
+    return { st, ratio, pollPair, indPair };
+  });
+
+  // For each state, build an array of {date, pDem, margin}
+  const result = {};
+  for (const { st } of stateData) {
+    result[st] = [];
+  }
+
+  for (let day = 0; day < gbSeries.length; day++) {
+    const gbNat = normalizePair(+gbSeries[day].dem, +gbSeries[day].rep);
+    const dateStr = gbSeries[day].date;
+
+    for (let i = 0; i < n; i++) {
+      const { st, ratio, pollPair, indPair } = stateData[i];
+      const gbPair = computeGenericBallotState(gbNat, ratio);
+
+      const comps = [
+        { pair: gbPair,   w: WEIGHTS.gb },
+        { pair: pollPair, w: pollPair ? WEIGHTS.polls : 0 },
+        { pair: indPair,  w: indPair ? WEIGHTS.ind : 0 },
+      ];
+      const combinedPair = weightedCombine(comps);
+      const margin = marginRD(combinedPair);
+      const pDem = winProbFromMargin(margin).pD;
+
+      result[st].push({
+        date: dateStr,
+        pDem: +pDem.toFixed(4),
+        margin: +margin.toFixed(2),
+      });
+    }
+
+    if (day % 50 === 0) process.stdout.write(`  ${modeKey} state odds: ${day + 1}/${gbSeries.length}\r`);
+  }
+  console.log(`  ${modeKey} state odds: ${gbSeries.length}/${gbSeries.length} done (${n} states)`);
+  return result;
+}
+
+// House districts: only track competitive ones (|margin| < 15) to keep file size manageable
+function computeHouseDistrictOddsOverTime(gbSeries) {
+  const ratioKeys = Object.keys(DATA.house.ratios || {}).sort();
+  if (!ratioKeys.length || !gbSeries.length) return {};
+
+  // First pass: identify competitive districts (current margin < 15)
+  const competitive = [];
+  for (const did of ratioKeys) {
+    const model = getHouseModel(did);
+    if (!model) continue;
+    if (Math.abs(marginRD(model.combinedPair)) < 15) {
+      competitive.push({ did, ratio: DATA.house.ratios[did] });
+    }
+  }
+
+  const result = {};
+  for (const { did } of competitive) {
+    result[did] = [];
+  }
+
+  for (let day = 0; day < gbSeries.length; day++) {
+    const gbNat = normalizePair(+gbSeries[day].dem, +gbSeries[day].rep);
+    const dateStr = gbSeries[day].date;
+
+    for (const { did, ratio } of competitive) {
+      const gbPair = computeGenericBallotState(gbNat, ratio);
+      const margin = marginRD(gbPair);
+      const pDem = winProbFromMargin(margin).pD;
+
+      result[did].push({
+        date: dateStr,
+        pDem: +pDem.toFixed(4),
+        margin: +margin.toFixed(2),
+      });
+    }
+
+    if (day % 50 === 0) process.stdout.write(`  house district odds: ${day + 1}/${gbSeries.length}\r`);
+  }
+  console.log(`  house district odds: ${gbSeries.length}/${gbSeries.length} done (${competitive.length} competitive districts)`);
+  return result;
+}
+
 /* ========== MAIN ========== */
 function main() {
   const today = isoDate(new Date());
@@ -961,21 +1124,26 @@ function main() {
   console.log(`  House: D control ${(houseResult.pDem * 100).toFixed(1)}%, E[D seats] ${houseResult.expectedDSeats}`);
 
   // Run odds-over-time for each chamber using the full GB series
-  console.log("\nRunning odds over time (all GB series days)...");
+  console.log("\nRunning chamber odds over time (all GB series days)...");
   const senateOdds = runOddsOverTimeState("senate", gbSeries, indSenate);
   const governorOdds = runOddsOverTimeState("governor", gbSeries, indGovernor);
   const houseOdds = runOddsOverTimeHouse(gbSeries);
 
+  // Per-state/district odds over time (analytical, for sparklines)
+  console.log("\nRunning per-state odds over time...");
+  const senateStateOdds = computeStateOddsOverTime("senate", gbSeries, indSenate);
+  const governorStateOdds = computeStateOddsOverTime("governor", gbSeries, indGovernor);
+  const houseDistrictOdds = computeHouseDistrictOddsOverTime(gbSeries);
+
   // Load existing results to append daily history
-  let existing = { history: [], oddsOverTime: { senate: [], governor: [], house: [] } };
+  let existing = { history: [] };
   if (fs.existsSync(RESULTS_FILE)) {
     try {
       existing = JSON.parse(fs.readFileSync(RESULTS_FILE, "utf-8"));
       if (!existing.history) existing.history = [];
-      if (!existing.oddsOverTime) existing.oddsOverTime = { senate: [], governor: [], house: [] };
     } catch (e) {
       console.warn("Could not parse existing results file, starting fresh.");
-      existing = { history: [], oddsOverTime: { senate: [], governor: [], house: [] } };
+      existing = { history: [] };
     }
   }
 
@@ -999,11 +1167,18 @@ function main() {
   // Sort history by date
   existing.history.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Update odds-over-time (full replacement each run, since it's computed from full GB series)
+  // Update odds-over-time (full replacement each run)
   existing.oddsOverTime = {
     senate: senateOdds,
     governor: governorOdds,
     house: houseOdds,
+  };
+
+  // Per-state/district odds over time (for sparklines and state detail views)
+  existing.stateOddsOverTime = {
+    senate: senateStateOdds,
+    governor: governorStateOdds,
+    house: houseDistrictOdds,
   };
 
   // Add metadata
@@ -1012,13 +1187,18 @@ function main() {
   existing.gbSeriesLength = gbSeries.length;
   existing.simsPerDay = NUM_SIMS;
 
-  // Write output
-  fs.writeFileSync(RESULTS_FILE, JSON.stringify(existing, null, 2));
+  // Write output (compact JSON to minimize file size for browser loading)
+  fs.writeFileSync(RESULTS_FILE, JSON.stringify(existing));
+  const stateOddsCount = Object.keys(senateStateOdds).length + Object.keys(governorStateOdds).length;
+  const districtOddsCount = Object.keys(houseDistrictOdds).length;
   console.log(`\nResults saved to ${RESULTS_FILE}`);
   console.log(`  History entries: ${existing.history.length}`);
   console.log(`  Senate states: ${Object.keys(senateResult.perState).length}`);
   console.log(`  Governor states: ${Object.keys(governorResult.perState).length}`);
   console.log(`  House districts: ${Object.keys(houseResult.perState).length}`);
+  console.log(`  State odds-over-time: ${stateOddsCount} states tracked`);
+  console.log(`  Competitive house districts tracked: ${districtOddsCount}`);
+  console.log(`  File size: ${(fs.statSync(RESULTS_FILE).size / 1024 / 1024).toFixed(1)} MB`);
   console.log("Done.");
 }
 

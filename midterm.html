@@ -1122,6 +1122,39 @@
       color: var(--muted);
     }
 
+    /* Simulation status bar */
+    .simStatusBar{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 16px;
+      margin-bottom:12px;
+      border-radius:var(--radius-md);
+      background: var(--card-bg);
+      backdrop-filter: blur(10px);
+      border:1px solid var(--card-border);
+      font-size:12px;
+      font-weight:600;
+      color: var(--muted);
+      flex-wrap:wrap;
+    }
+    .simStatusBar .simDot{
+      width:8px; height:8px;
+      border-radius:50%;
+      background: var(--ok);
+      flex:0 0 auto;
+    }
+    .simStatusBar .simDot.stale{
+      background: var(--warn);
+    }
+    .simStatusBar .simDot.missing{
+      background: var(--muted-light);
+    }
+    .simStatusBar .simLabel{
+      font-weight:700;
+      color: var(--ink-dim);
+    }
+
 
     .gbControls{
       display:flex;
@@ -1168,6 +1201,12 @@
 <body>
   <div class="wrap">
     <div id="loadError" class="loadError" hidden></div>
+
+    <div class="simStatusBar" id="simStatusBar" hidden>
+      <span class="simDot" id="simStatusDot"></span>
+      <span class="simLabel">Simulations:</span>
+      <span id="simStatusText">Loading...</span>
+    </div>
 
 <div class="triGrid" id="triGrid" aria-label="Three-panel forecast">
 
@@ -2011,6 +2050,9 @@ function resetOddsWorkers(){
 }
 
 function refreshAllAfterGbChange(){
+  // Invalidate pre-computed results (GB filter changed, need fresh computation)
+  SIM_RESULTS_ACTIVE = false;
+
   // clear caches tied to GB series
   try{ TIP_SPARK_CACHE.clear(); }catch(e){}
 
@@ -2503,19 +2545,36 @@ function computeWinProbSeries(modeKey, key, cachedIndNat, gbSub){
   return out;
 }
 
+function getPrecomputedStateSparkline(modeKey, key){
+  // Try to get pre-computed per-state odds-over-time from simulation_results.json
+  if (!SIM_RESULTS_ACTIVE || !SIM_RESULTS || !SIM_RESULTS.stateOddsOverTime) return null;
+  const modeData = SIM_RESULTS.stateOddsOverTime[modeKey];
+  if (!modeData || !modeData[key]) return null;
+  const stateOdds = modeData[key];
+  if (!stateOdds || !stateOdds.length) return null;
+  // Extract just the pDem values (matching computeWinProbSeries output)
+  return stateOdds.map(d => d.pDem);
+}
+
 function renderTipSpark(modeKey, key, cachedIndNat){
   const canvas = document.getElementById("tipSpark");
   const label = document.getElementById("tipSparkVal");
   if (!canvas) return;
 
-  const days = getTipSparkDays(modeKey);
-  const gbSub = subsetGbSeriesByDays(days);
-  const cacheKey = `${modeKey}|${key}|${days}|${GB_SRC.windowPolls}|${gbSub.length}`;
+  // Try pre-computed per-state sparkline first
+  let vals = getPrecomputedStateSparkline(modeKey, key);
 
-  let vals = TIP_SPARK_CACHE.get(cacheKey);
-  if (!vals){
-    vals = computeWinProbSeries(modeKey, key, cachedIndNat, gbSub);
-    TIP_SPARK_CACHE.set(cacheKey, vals);
+  if (!vals) {
+    // Fallback: compute on-the-fly from GB series
+    const days = getTipSparkDays(modeKey);
+    const gbSub = subsetGbSeriesByDays(days);
+    const cacheKey = `${modeKey}|${key}|${days}|${GB_SRC.windowPolls}|${gbSub.length}`;
+
+    vals = TIP_SPARK_CACHE.get(cacheKey);
+    if (!vals){
+      vals = computeWinProbSeries(modeKey, key, cachedIndNat, gbSub);
+      TIP_SPARK_CACHE.set(cacheKey, vals);
+    }
   }
 
   if (label && vals && vals.length){
@@ -3145,8 +3204,16 @@ function updateSeatMeterFor(modeKey){
   if (ui.seatsD) ui.seatsD.textContent = String(d);
   if (ui.seatsR) ui.seatsR.textContent = String(r);
 
-  // Chamber control probabilities (shown in the pills)
-  const probs = chamberControlProbs(modeKey, IND_CACHE[modeKey]);
+  // Try to use pre-computed simulation results (from run-simulations.js)
+  let probs = null;
+  const precomp = getPrecomputedChamberProbs(modeKey);
+  if (precomp) {
+    probs = precomp;
+  } else {
+    // Fallback: run MC in browser
+    probs = chamberControlProbs(modeKey, IND_CACHE[modeKey]);
+  }
+
   if (ui.pillD) ui.pillD.textContent = (probs.pD * 100).toFixed(1);
   if (ui.pillR) ui.pillR.textContent = (probs.pR * 100).toFixed(1);
 
@@ -3169,6 +3236,20 @@ function updateSeatMeterFor(modeKey){
       if (ctx) ctx.clearRect(0,0,ui.simCanvas.width, ui.simCanvas.height);
     }
   }
+}
+
+function getPrecomputedChamberProbs(modeKey){
+  if (!SIM_RESULTS_ACTIVE || !SIM_RESULTS || !SIM_RESULTS.history || !SIM_RESULTS.history.length) return null;
+  const latest = SIM_RESULTS.history[SIM_RESULTS.history.length - 1];
+  const chamberData = latest[modeKey];
+  if (!chamberData) return null;
+
+  const pD = chamberData.pDem;
+  const pR = chamberData.pRep;
+  const hist = chamberData.seatDistribution || null;
+
+  if (!isFinite(pD) || !isFinite(pR)) return null;
+  return { pD, pR, hist };
 }
 
 
@@ -4416,6 +4497,7 @@ function setupOddsUI(modeKey){
 
 /* ---------- Pre-computed simulation results (from run-simulations.js) ---------- */
 let SIM_RESULTS = null; // loaded from simulation_results.json
+let SIM_RESULTS_ACTIVE = true; // set to false when user changes GB filter (invalidates pre-computed data)
 
 async function loadSimulationResults(){
   try{
@@ -4431,6 +4513,44 @@ async function loadSimulationResults(){
   }catch(err){
     console.warn("simulation_results.json not available, will compute on-the-fly:", err.message);
     return false;
+  }
+}
+
+function updateSimStatusBar(hasPrecomputed){
+  const bar = document.getElementById("simStatusBar");
+  const dot = document.getElementById("simStatusDot");
+  const text = document.getElementById("simStatusText");
+  if (!bar) return;
+
+  bar.hidden = false;
+
+  if (!hasPrecomputed){
+    dot.classList.add("missing");
+    text.textContent = "No pre-computed results found. Running simulations in-browser (slower). Run: node run-simulations.js";
+    return;
+  }
+
+  const lastRun = SIM_RESULTS.lastRunDate || "unknown";
+  const sims = SIM_RESULTS.simsPerDay ? SIM_RESULTS.simsPerDay.toLocaleString() : "10,000";
+  const histLen = SIM_RESULTS.history?.length || 0;
+  const stateCount = SIM_RESULTS.stateOddsOverTime
+    ? Object.keys(SIM_RESULTS.stateOddsOverTime.senate || {}).length
+      + Object.keys(SIM_RESULTS.stateOddsOverTime.governor || {}).length
+    : 0;
+  const districtCount = SIM_RESULTS.stateOddsOverTime
+    ? Object.keys(SIM_RESULTS.stateOddsOverTime.house || {}).length
+    : 0;
+
+  // Check staleness (> 2 days old)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const runDate = new Date(lastRun + "T00:00:00");
+  const daysDiff = Math.floor((today - runDate) / (1000*60*60*24));
+
+  if (daysDiff > 2){
+    dot.classList.add("stale");
+    text.textContent = `Last run: ${lastRun} (${daysDiff}d ago — stale!) · ${sims} sims/day · ${histLen} daily snapshots · ${stateCount} states + ${districtCount} competitive districts tracked`;
+  } else {
+    text.textContent = `Last run: ${lastRun} · ${sims} sims/day · ${histLen} daily snapshots · ${stateCount} states + ${districtCount} competitive districts tracked`;
   }
 }
 
@@ -4483,15 +4603,17 @@ function applyPrecomputedOdds(){
   for (const mode of MODES){
     setupOddsUI(mode);
   }
+  // Load pre-computed simulation results BEFORE maps/meters so data is available
+  const hasPrecomputed = await loadSimulationResults();
+  updateSimStatusBar(hasPrecomputed);
+
   for (const mode of MODES){
     await initMapForMode(mode);
     recolorMapForMode(mode);
     renderBucketTableForMode(mode);
-    updateSeatMeterFor(mode);
+    updateSeatMeterFor(mode); // uses pre-computed probs if available
   }
 
-  // Try to load pre-computed simulation results first (produced by run-simulations.js)
-  const hasPrecomputed = await loadSimulationResults();
   if (hasPrecomputed){
     // Use pre-computed odds-over-time data (no heavy simulation on page load)
     applyPrecomputedOdds();
