@@ -1,0 +1,64 @@
+race,office,state,pollster,pollster_partisan,start_date,end_date,sample_n,sample_type,moe_pct,candA_name,candA_party,candA_pct,candB_name,candB_party,candB_pct,other_pct,undecided_pct,sigma,notes
+AK-SEN,Senate,AK,Public Policy Polling,D,2026-01-16,2026-01-17,611,V,,Dan Sullivan,R,47,Mary Peltola,D,49,0,4,3,
+AK-SEN,Senate,AK,Alaska Survey Research,,2026-01-08,2026-01-11,1988,LV,2.2,Dan Sullivan,R,46,Mary Peltola,D,48,0,6,3,
+AK-SEN,Senate,AK,Data for Progress,D,2025-10-17,2025-10-23,823,LV,3.0,Dan Sullivan,R,45,Mary Peltola,D,46,5,4,3,
+AK-SEN,Senate,AK,Alaska Survey Research,,2025-10-10,2025-10-15,1708,LV,,Dan Sullivan,R,46,Mary Peltola,D,48,0,6,3,
+FL-SEN,Senate,FL,University of North Florida,,2025-10-15,2025-10-25,728,LV,4.3,Ashley Moody,R,49,Jennifer Jenkins,D,38,3,10,3,UNF topline #1
+FL-SEN,Senate,FL,University of North Florida,,2025-10-15,2025-10-25,728,LV,4.3,Ashley Moody,R,47,Jennifer Jenkins,D,37,3,13,3,UNF topline #2
+FL-SEN,Senate,FL,The Tyson Group,R,2025-10-01,2025-10-03,800,LV,,Ashley Moody,R,44,Jennifer Jenkins,D,37,0,19,3,
+GA-SEN,Senate,GA,TIPP Insights,,2025-07-28,2025-08-01,2956,RV,1.8,Republican,R,44,Democratic,D,45,3,8,3,Candidate names not in paste
+GA-SEN,Senate,GA,Cygnal,R,2025-05-15,2025-05-17,800,LV,3.4,Republican,R,43,Democratic,D,46,0,11,3,Candidate names not in paste
+GA-SEN,Senate,GA,Trafalgar Group,R,2025-04-24,2025-04-27,1426,LV,2.9,Republican,R,43,Democratic,D,48,3,6,3,Candidate names not in paste
+GA-SEN,Senate,GA,WPA Intelligence,R,2025-01-14,2025-01-15,500,LV,4.4,Republican,R,34,Democratic,D,44,0,22,3,Candidate names not in paste
+IA-SEN,Senate,IA,Public Policy Polling,D,2025-06-02,2025-06-03,568,V,4.1,Joni Ernst,R,45,Generic Democratic,D,43,0,12,3,
+KY-SEN,Senate,KY,Public Policy Polling,D,2025-12-18,2025-12-19,650,V,,Andy Barr,R,49,Charles Booker,D,38,0,13,3,
+ME-SEN,Senate,ME,Pan Atlantic Research,,2025-11-29,2025-12-07,820,LV,3.7,Republican,R,42,Democratic,D,43,0,15,3,Candidate names not in paste
+ME-SEN,Senate,ME,Maine People's Resource Center,,2025-10-26,2025-10-29,783,LV,3.5,Republican,R,41,Democratic,D,45,0,14,3,Candidate names not in paste
+ME-SEN,Senate,ME,Cygnal,R,2025-11-10,2025-11-11,600,LV,4.0,Republican,R,41,Democratic,D,49,0,11,3,Candidate names not in paste
+MA-SEN,Senate,MA,Suffolk University,,2025-11-19,2025-11-23,500,RV,4.4,Ed Markey,D,54,John Deaton,R,31,0,15,3,
+MA-SEN,Senate,MA,SurveyUSA,,2025-02-28,2025-03-04,775,RV,,Ed Markey,D,45,John Deaton,R,26,0,30,3,
+MI-SEN,Senate,MI,Emerson College,,2026-01-24,2026-01-25,1000,LV,3.0,Candidate A,,46,Candidate B,,43,0,11,3,Candidate names/parties not in paste
+MI-SEN,Senate,MI,Glengariff Group,,2026-01-02,2026-01-06,600,LV,4.0,Candidate A,,46,Candidate B,,43,0,11,3,Candidate names/parties not in paste
+MN-SEN,Senate,MN,Impact Research,D,2025-07-08,2025-07-11,604,LV,4.0,Peggy Flanagan,DFL,48,Michele Tafoya,R,45,0,7,3,
+NE-SEN,Senate,NE,Lake Research Partners,D,2025-12-11,2025-12-17,900,LV,,Candidate A,,48,Candidate B,,47,0,5,3,Candidate names/parties not in paste
+NE-SEN,Senate,NE,Lake Research Partners,D,2025-07-23,2025-07-29,900,LV,3.3,Candidate A,,46,Candidate B,,47,0,7,3,Candidate names/parties not in paste
+NE-SEN,Senate,NE,Change Research,D,2025-03-28,2025-04-01,524,LV,4.6,Candidate A,,46,Candidate B,,45,0,9,3,Candidate names/parties not in paste
+NH-SEN,Senate,NH,University of New Hampshire,,2026-01-15,2026-01-19,2053,LV,2.1,Candidate A,,50,Candidate B,,45,1,5,3,Candidate names/parties not in paste
+NH-SEN,Senate,NH,NHJournal/Praecones Analytica,,2025-12-26,2025-12-28,603,RV,4.0,Candidate A,,42,Candidate B,,36,0,22,3,Candidate names/parties not in paste
+NH-SEN,Senate,NH,Saint Anselm College,,2025-11-18,2025-11-19,2212,RV,,Candidate A,,44,Candidate B,,41,0,16,3,Candidate names/parties not in paste
+NH-SEN,Senate,NH,University of New Hampshire,,2025-09-17,2025-09-23,1235,LV,2.8,Candidate A,,49,Candidate B,,43,1,7,3,Candidate names/parties not in paste
+NC-SEN,Senate,NC,TIPP Insights,R,2026-01-12,2026-01-15,1512,RV,2.7,Republican,R,24,Democratic,D,48,0,27,3,Candidate names not in paste
+NC-SEN,Senate,NC,Change Research,D,2026-01-05,2026-01-07,1105,LV,3.5,Republican,R,42,Democratic,D,47,1,9,3,Candidate names not in paste
+NC-SEN,Senate,NC,Harper Polling,R,2025-11-09,2025-11-10,600,LV,4.0,Republican,R,39,Democratic,D,47,4,10,3,Candidate names not in paste
+NC-SEN,Senate,NC,Harper Polling,R,2025-09-14,2025-09-15,600,RV,4.0,Republican,R,42,Democratic,D,46,4,8,3,Candidate names not in paste
+NC-SEN,Senate,NC,Change Research,D,2025-09-02,2025-09-08,855,LV,3.6,Republican,R,41,Democratic,D,48,0,11,3,Candidate names not in paste
+NC-SEN,Senate,NC,Harper Polling,R,2025-08-11,2025-08-12,600,RV,4.0,Republican,R,39,Democratic,D,47,4,10,3,Candidate names not in paste
+NC-SEN,Senate,NC,Emerson College,,2025-07-28,2025-07-30,1000,RV,3.0,Republican,R,41,Democratic,D,47,0,12,3,Candidate names not in paste
+OH-SEN,Senate,OH,Emerson College,,2025-12-06,2025-12-08,850,RV,3.3,Candidate A,,49,Candidate B,,46,0,5,3,Candidate names/parties not in paste
+OH-SEN,Senate,OH,Bowling Green State University/YouGov,,2025-10-02,2025-10-14,800,RV,4.5,Candidate A,,48,Candidate B,,49,3,0,3,Candidate names/parties not in paste
+OH-SEN,Senate,OH,Hart Research,D,2025-09-19,2025-09-22,800,LV,3.5,Candidate A,,45,Candidate B,,48,0,7,3,Candidate names/parties not in paste
+SC-SEN,Senate,SC,Public Policy Polling,D,2025-11-21,2025-11-22,704,V,3.7,Lindsey Graham,R,42,Annie Andrews,D,36,0,22,3,
+TX-SEN,Senate,TX,Emerson College,,2026-01-10,2026-01-12,1165,RV,2.8,Ken Paxton,R,46,James Talarico,D,46,0,9,3,
+TX-SEN,Senate,TX,Ragnar Research Partners,R,2025-11-12,2025-11-17,1000,LV,3.0,Ken Paxton,R,44,James Talarico,D,44,0,12,3,
+TX-SEN,Senate,TX,University of Houston/Texas Southern University,,2025-09-19,2025-10-01,1650,RV,2.41,Ken Paxton,R,49,James Talarico,D,46,0,5,3,
+TX-SEN,Senate,TX,NRSC,,2026-02-01,2026-02-01,1000,LV,3.0,Ken Paxton,R,43,James Talarico,D,46,0,5,3,
+MN-GOV,Governor,MN,SurveyUSA,,2026-01-27,2026-01-30,575,RV,4.8,Amy Klobuchar,DFL,52,Mike Lindell,R,32,0,16,3,
+NH-GOV,Governor,NH,University of New Hampshire,,2026-01-15,2026-01-19,2053,LV,2.1,Kelly Ayotte,R,49,Deaglan McEachern,D,41,0,10,3,
+WI-GOV,Governor,WI,Impact Research,D,2025-10-02,2025-10-08,500,LV,4.4,Mandela Barnes,D,50,Tom Tiffany,R,44,0,7,3,
+PA-GOV,Governor,PA,Quinnipiac University,,2025-09-25,2025-09-29,1579,RV,3.3,Josh Shapiro,D,55,Stacy Garrity,R,39,1,5,3,
+PA-GOV,Governor,PA,Susquehanna Polling & Research,R,2025-09-22,2025-09-28,700,LV,3.7,Josh Shapiro,D,54,Stacy Garrity,R,36,0,9,3,
+NV-GOV,Governor,NV,Emerson College,,2025-11-16,2025-11-18,800,RV,3.4,Joe Lombardo,R,41,Aaron Ford,D,41,0,18,3,
+AZ-GOV,Governor,AZ,NXTGenP,R,2025-12-15,2025-12-17,2725,LV,1.9,Katie Hobbs,D,51,Andy Biggs,R,32,7,9,3,
+AZ-GOV,Governor,AZ,Emerson College,,2025-11-08,2025-11-10,850,RV,3.3,Katie Hobbs,D,44,Andy Biggs,R,43,0,13,3,
+AZ-GOV,Governor,AZ,Noble Predictive Insights,,2025-08-11,2025-08-18,948,RV,3.2,Katie Hobbs,D,39,Andy Biggs,R,37,4,20,3,
+AZ-GOV,Governor,AZ,Noble Predictive Insights,,2025-05-12,2025-05-16,1026,RV,3.1,Katie Hobbs,D,40,Andy Biggs,R,38,5,17,3,
+AZ-GOV,Governor,AZ,Pulse Decision Science,R,2025-04-06,2025-04-09,501,LV,4.4,Katie Hobbs,D,46,Andy Biggs,R,42,0,12,3,
+AZ-GOV,Governor,AZ,Noble Predictive Insights,,2025-02-11,2025-02-13,1006,RV,3.1,Katie Hobbs,D,40,Andy Biggs,R,38,5,17,3,
+OH-GOV,Governor,OH,Emerson College,,2025-12-06,2025-12-08,850,RV,3.3,Vivek Ramaswamy,R,45,Amy Acton,D,46,0,9,3,
+OH-GOV,Governor,OH,Hart Research,D,2025-09-19,2025-09-22,800,LV,3.0,Vivek Ramaswamy,R,45,Amy Acton,D,46,0,9,3,
+FL-GOV,Governor,FL,University of North Florida,,2025-10-15,2025-10-25,728,LV,4.3,Byron Donalds,R,45,David Jolly,D,34,3,18,3,
+IA-GOV,Governor,IA,Z to A Research,D,2025-10-09,2025-10-13,1351,LV,2.7,Randy Feenstra,R,43,Rob Sand,D,45,0,12,3,
+AK-GOV,Governor,AK,Alaska Survey Research,,2025-10-10,2025-10-14,,,,Nick Begich,D,51,Nancy Dahlstrom,R,49,0,0,3,Sample/moe not provided in paste; assumed year=2025
+TX-GOV,Governor,TX,Emerson College,,2026-01-10,2026-01-12,1165,RV,2.8,Greg Abbott,R,50,Gina Hinojosa,D,42,0,8,3,
+IA-SEN,Senate,IA,Change Research,,2026-02-01,2026-02-08,1000,RV,2.8,Ashley Hinson,R,44,Josh Turek,D,41,0,15,3,
+IA-SEN,Senate,IA,Change Research,,2026-02-01,2026-02-08,1000,RV,2.8,Ashley Hinson,R,46,Josh Turek,D,46,0,15,3,

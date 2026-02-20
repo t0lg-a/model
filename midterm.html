@@ -1,0 +1,4474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Election Forecast</title> 
+
+  <!-- D3 + TopoJSON -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    html{ color-scheme: light; }
+
+    :root{
+      /* Palette */
+      --bg-app: #f3f4f6;
+      --bg-gradient-1: #eef2ff;
+      --bg-gradient-2: #fff1f2;
+      
+      --ink: #111827;
+      --ink-dim: #374151;
+      --muted: #6b7280;
+      --muted-light: #9ca3af;
+
+      --card-bg: rgba(255, 255, 255, 0.85);
+      --card-border: rgba(255, 255, 255, 0.6);
+      --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+      --card-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+
+      --line: #e5e7eb;
+      --line-strong: #d1d5db;
+
+      /* Political Colors (Modern Standard) */
+      --blue: #2563eb;
+      --blue-dark: #1e40af;
+      --blue-soft: #dbeafe;
+      --blue-border: #93c5fd;
+
+      --red: #dc2626;
+      --red-dark: #991b1b;
+      --red-soft: #fee2e2;
+      --red-border: #fca5a5;
+
+      --neutral-bg: #f9fafb;
+      --neutral-border: #e5e7eb;
+
+      /* UI */
+      --focus-ring: 0 0 0 3px rgba(99, 102, 241, 0.3);
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --radius-pill: 9999px;
+
+      --sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      /* Semantic */
+      --ok: #10b981;
+      --warn: #f59e0b;
+      --zero: #1f2937;
+    }
+
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--ink);
+      background-color: var(--bg-app);
+      background-image:
+        radial-gradient(circle at 10% 10%, var(--bg-gradient-1), transparent 40%),
+        radial-gradient(circle at 90% 20%, var(--bg-gradient-2), transparent 40%);
+      background-attachment: fixed;
+      overflow-x:hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap{
+      max-width:1280px;
+      margin:0 auto;
+      padding:24px;
+    }
+
+    /* App Bar */
+    .appbar{
+      position:sticky;
+      top:0;
+      z-index:60;
+      padding:16px 0 20px;
+      /* Gradient fade for scroll area */
+      background: linear-gradient(to bottom, var(--bg-app) 0%, rgba(243,244,246,0.8) 60%, transparent 100%);
+      pointer-events: none; /* Let clicks pass through the padding areas */
+    }
+    .appbarInner{
+      pointer-events: auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:12px 16px;
+      border-radius:var(--radius-lg);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border:1px solid var(--card-border);
+      box-shadow: var(--card-shadow);
+      flex-wrap:wrap;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:250px;
+    }
+    .brandMark{
+      width:40px;height:40px;
+      border-radius:12px;
+      background: linear-gradient(135deg, var(--blue), var(--blue-dark));
+      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    /* Simple stylized flag element inside brandMark */
+    .brandMark::after {
+      content: "";
+      position: absolute;
+      top: 0; right: 0; bottom: 0; left: 50%;
+      background: rgba(255,255,255,0.15);
+      transform: skewX(-15deg) translateX(5px);
+    }
+    
+    .brandTitle{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+    }
+    .brandTitle .t{
+      font-size:16px;
+      font-weight:800;
+      letter-spacing:-0.01em;
+      color: var(--ink);
+    }
+    .brandTitle .s{
+      font-size:13px;
+      color:var(--muted);
+      font-weight:500;
+    }
+
+    /* Segmented Control */
+    .seg{
+      position:relative;
+      display:flex;
+      background: var(--neutral-bg);
+      border:1px solid var(--line);
+      border-radius:var(--radius-pill);
+      padding:4px;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+      min-width:280px;
+      justify-content:space-between;
+    }
+    .seg button{
+      position:relative;
+      appearance:none;
+      border:none;
+      background:transparent;
+      color:var(--muted);
+      font-weight:600;
+      font-size:13px;
+      padding:8px 16px;
+      border-radius:var(--radius-pill);
+      cursor:pointer;
+      flex:1;
+      text-align:center;
+      transition: color .2s ease;
+      z-index: 2;
+    }
+    .seg button:hover { color: var(--ink-dim); }
+    .seg button.active{ color: var(--blue-dark); text-shadow: 0 0 1px rgba(0,0,0,0.1); }
+    .segIndicator{
+      position:absolute;
+      top:4px; bottom:4px;
+      width:calc(33.333% - 4px);
+      border-radius:var(--radius-pill);
+      background: #ffffff;
+      border:1px solid rgba(0,0,0,0.04);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      transform: translateX(0%);
+      transition: transform .25s cubic-bezier(0.2, 0.8, 0.2, 1);
+      z-index: 1;
+      pointer-events:none;
+    }
+    .seg[data-mode="governor"] .segIndicator{ transform: translateX(100%); }
+    .seg[data-mode="house"] .segIndicator{ transform: translateX(200%); }
+
+    /* Layout */
+    .layout{
+      display:grid;
+      /* Force single column stack for safety, logic matches original code which had display:block but grid gap support */
+      grid-template-columns: 1fr; 
+      gap:18px;
+      margin-top:0px;
+    }
+    @media (min-width: 980px){
+        /* Original was column, let's keep it stacked but add spacing */
+    }
+
+    /* Cards */
+    .card{
+      border:1px solid var(--card-border);
+      border-radius:var(--radius-lg);
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      box-shadow: var(--card-shadow);
+      overflow:hidden;
+      transition: box-shadow 0.2s ease;
+    }
+    .card:hover {
+      box-shadow: var(--card-shadow-hover);
+    }
+    
+    .cardTitleRow{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      padding:16px 20px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(to bottom, rgba(255,255,255,0.5), rgba(255,255,255,0));
+    }
+
+    .cardTitle{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .cardTitle .h{
+      font-size:15px;
+      font-weight:700;
+      color: var(--ink);
+    }
+    .cardTitle .sub{
+      font-size:13px;
+      color:var(--muted);
+      font-weight:500;
+    }
+    .cardInner{ padding:20px; }
+
+    /* Projected Seats Card */
+    .seatHeader{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      padding:20px 20px 16px;
+      border-bottom:1px solid var(--line);
+    }
+    .seatHeadLeft .h{ margin:0; font-size:14px; font-weight:700; color:var(--muted); text-transform: uppercase; letter-spacing: 0.03em;}
+    .seatNumbers{
+      margin-top:6px;
+      font-size:26px;
+      font-weight:800;
+      letter-spacing:-0.03em;
+      color:var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .seatPill{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:8px 16px;
+      border-radius:var(--radius-md);
+      border:1px solid var(--line);
+      background: #ffffff;
+      box-shadow: var(--card-shadow);
+      user-select:none;
+      min-width: 160px;
+    }
+    .seatDot{
+      width:10px; height:10px;
+      border-radius:50%;
+      background: var(--muted-light);
+      flex:0 0 auto;
+    }
+    .seatPill.blue{ border-color: var(--blue-border); background: var(--blue-soft); }
+    .seatPill.blue .seatDot{ background: var(--blue); box-shadow: 0 0 0 2px #fff; }
+    
+    .seatPill.red{ border-color: var(--red-border); background: var(--red-soft); }
+    .seatPill.red  .seatDot{ background: var(--red); box-shadow: 0 0 0 2px #fff; }
+    
+    .seatPill.neutral .seatDot{ background: var(--muted); }
+
+    .seatPillLabel{
+      font-size:11px;
+      font-weight:700;
+      letter-spacing:.05em;
+      text-transform:uppercase;
+      color:var(--ink-dim);
+      opacity: 0.7;
+    }
+    .seatPillValue{
+      font-size:14px;
+      font-weight:700;
+      color:var(--ink);
+      font-variant-numeric: tabular-nums;
+      line-height:1.2;
+    }
+    .seatPillTextWrap{ display:flex; flex-direction:column; }
+
+    .seatLegendRow{
+      margin-top:16px;
+      display:flex;
+      gap:16px;
+      flex-wrap:wrap;
+      align-items:center;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:500;
+    }
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 8px;
+      border-radius:6px;
+      font-size:12px;
+      font-weight:600;
+      font-family: var(--mono);
+    }
+    .chip.blue{ background: var(--blue-soft); color: var(--blue-dark); }
+    .chip.red{ background: var(--red-soft); color: var(--red-dark); }
+
+    /* Seat meter */
+    .seatAxis{
+      position:relative;
+      height:72px;
+      border-radius:var(--radius-md);
+      border:1px solid var(--line);
+      background: var(--neutral-bg);
+      overflow:hidden;
+    }
+    #seatTicks{ position:absolute; inset:0; pointer-events:none;}
+    .seatBar{
+      position:absolute;
+      left:16px; right:16px;
+      top:26px;
+      height:16px;
+      border-radius:8px;
+      background: rgba(0,0,0,0.05);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+      overflow:hidden;
+      display:flex;
+    }
+    .seatSeg{ height:100%; transition: width .4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    
+    .seatD{ background: linear-gradient(180deg, var(--blue) 0%, var(--blue-dark) 100%); }
+    .seatR{ background: linear-gradient(180deg, var(--red) 0%, var(--red-dark) 100%); }
+    .seatO{ background: transparent; }
+
+    .seatMajorityLine{
+      position:absolute;
+      top:0; bottom:0;
+      width:2px;
+      background: var(--ink);
+      z-index: 5;
+      opacity: 0.8;
+      pointer-events: none;
+    }
+    .seatMajorityLine::after {
+        content: '';
+        position: absolute;
+        top: 0; left: -2px; right: -2px; height: 6px;
+        background: var(--ink);
+    }
+    
+    .seatTickLabel{
+      position:absolute;
+      bottom:8px;
+      transform:translateX(-50%);
+      font-size:11px;
+      font-weight:600;
+      color: var(--muted);
+      font-family: var(--mono);
+      user-select:none;
+    }
+    .seatTickLine{
+      position:absolute;
+      top:0; bottom:0;
+      width:1px;
+      background: var(--line-strong);
+      opacity: 0.5;
+    }
+    .seatFooter{
+      padding:16px 20px;
+      border-top: 1px solid var(--line);
+      background: var(--neutral-bg);
+      color:var(--muted);
+      font-size:12px;
+      font-weight:500;
+      line-height:1.5;
+    }
+    .mono{ font-family:var(--mono); font-weight: 500;}
+
+    /* Map */
+    .mapStage{
+      position: relative;
+      background: white; 
+      border-radius: var(--radius-md);
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.03);
+    }
+    .mapSvg{
+      width:100%;
+      height:600px;
+      overflow: visible;
+      display:block;
+    }
+
+    .state{
+      stroke: white;
+      stroke-width: 1px;
+      vector-effect: non-scaling-stroke;
+      cursor:default;
+      transition: fill 0.2s ease, filter 0.2s ease;
+    }
+    .state.active{ cursor:pointer; }
+    .state.hovered{
+      stroke: var(--ink);
+      stroke-width:2px;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+      z-index: 10;
+      position: relative; 
+    }
+    
+    .district{
+      stroke: rgba(255,255,255,0.4);
+      stroke-width:0.5px;
+      vector-effect: non-scaling-stroke;
+      cursor:default;
+      transition: opacity 0.2s ease;
+    }
+    .district.active{ cursor:pointer; }
+    .district.hovered{
+      stroke: var(--ink);
+      stroke-width:1.5px;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+    }
+
+    .legendOverlay{
+      position:absolute;
+      left:20px;
+      bottom:20px;
+      padding:12px;
+      border-radius:var(--radius-md);
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(8px);
+      border:1px solid var(--line);
+      box-shadow: var(--card-shadow);
+    }
+    .swatch{
+      width:180px;
+      height:14px;
+      border-radius:99px;
+      border:1px solid rgba(0,0,0,0.05);
+      background: linear-gradient(90deg,
+        var(--blue-dark) 0%,
+        var(--blue) 35%,
+        #fde047 50%,
+        var(--red) 65%,
+        var(--red-dark) 100%);
+    }
+
+    /* Tooltip */
+    #tip{
+      position:fixed;
+      left:0; top:0;
+      transform: translate(-9999px,-9999px);
+      pointer-events:none;
+      width: min(280px, calc(100vw - 28px));
+      z-index:100;
+      border-radius:var(--radius-lg);
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(16px);
+      border:1px solid rgba(0,0,0,0.08);
+      box-shadow: 0 20px 40px -5px rgba(0,0,0,0.15), 0 10px 20px -5px rgba(0,0,0,0.1);
+      overflow:hidden;
+      font-family: var(--sans);
+    }
+    .tipTop{
+      padding:12px;
+      border-bottom:1px solid var(--line);
+      background: var(--neutral-bg);
+    }
+    .tipHeader{ display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .tipTitle{ margin:0; font-size:15px; font-weight:800; line-height:1.2; color: var(--ink); }
+    .tipMeta{
+      text-align:right;
+      font-size:11px;
+      color:var(--muted);
+      font-weight:600;
+      font-family: var(--mono);
+    }
+    .tipSub{
+      margin-top:8px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:3px 8px;
+      border-radius:6px;
+      border:1px solid var(--line);
+      background: white;
+      font-variant-numeric: tabular-nums;
+      font-size:12px;
+      font-weight:600;
+      color: var(--ink-dim);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .dot{ width:8px;height:8px;border-radius:50%; background: var(--muted-light); }
+    .dot.blue{ background: var(--blue); }
+    .dot.red{ background: var(--red); }
+
+    .tipBody{
+      display:block;
+      padding:10px 12px 12px;
+    }
+
+
+    .tipSparkWrap{
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid var(--line);
+    }
+    .tipSparkTitle{
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      font-size:11px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    #tipSpark{
+      width:100%;
+      height:60px;
+      display:block;
+      border-radius:10px;
+      background: rgba(0,0,0,0.02);
+      border:1px solid rgba(0,0,0,0.05);
+    }
+
+    /* Compact tooltip sizing */
+    #tip.compact{
+      width: min(280px, calc(100vw - 28px));
+    }
+    #tip.compact .tipTop{ padding:10px 12px; }
+    #tip.compact .tipTitle{ font-size:14px; }
+    #tip.compact .badge{ font-size:11px; padding:2px 7px; }
+    #tip.compact .tipMeta{ font-size:10px; }
+    #tip.compact .tipBody{ padding:8px 12px 12px; }
+
+    /* Ultra-compact “model factors” rows inside tooltip (no scroll) */
+    .miniRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:7px 0;
+    }
+    .miniLbl{
+      width:96px;
+      font-size:10px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+      color: var(--muted);
+    }
+    .miniVal{
+      width:58px;
+      text-align:right;
+      font-family: var(--mono);
+      font-size:11px;
+      font-weight:800;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+    .miniBar{
+      position:relative;
+      flex:1;
+      height:8px;
+      border-radius:9999px;
+      background: var(--neutral-bg);
+      border:1px solid var(--line);
+      overflow:hidden;
+    }
+    .miniZero{
+      position:absolute;
+      left:50%;
+      top:0;
+      bottom:0;
+      width:1px;
+      background: rgba(31,41,55,0.35);
+    }
+    .miniFill{
+      position:absolute;
+      top:0; bottom:0;
+      border-radius:9999px;
+      opacity:0.9;
+    }
+    .miniFill.blue{ background: var(--blue-soft); }
+    .miniFill.red{ background: var(--red-soft); }
+    .miniFill.neutral{ background: rgba(156,163,175,0.25); }
+
+    .miniDot{
+      position:absolute;
+      top:50%;
+      transform:translate(-50%,-50%);
+      width:8px;
+      height:8px;
+      border-radius:9999px;
+      border:2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.12);
+    }
+    .miniDot.blue{ background: var(--blue); }
+    .miniDot.red{ background: var(--red); }
+    .miniDot.neutral{ background: var(--muted-light); }
+    .miniNote{
+      font-size:11px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+
+    .sliderBlock{ margin-top:16px; }
+    .sliderLabelRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:8px;
+    }
+    .sliderLabel{
+      font-size:12px;
+      font-weight:700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    .chev{ width:12px;height:12px; opacity:.5; }
+    .sliderValue{
+      font-size:13px;
+      font-weight:700;
+      color:var(--ink);
+      font-family: var(--mono);
+    }
+    .axis{
+      position:relative;
+      height:48px;
+      border-radius:8px;
+      overflow:hidden;
+      border:1px solid var(--line);
+      background: var(--neutral-bg);
+    }
+
+    .gridline{ position:absolute; top:0; bottom:0; width:1px; background: rgba(0,0,0,0.05); }
+    .zeroLine{ background: var(--ink) !important; width:1px !important; opacity:0.3 !important; }
+    .tickLabel{
+      position:absolute;
+      bottom:6px;
+      transform:translateX(-50%);
+      font-size:10px;
+      font-weight:600;
+      opacity:.7;
+      user-select:none;
+      font-family: var(--mono);
+    }
+    .tickBlue{ color: var(--blue-dark); }
+    .tickRed{  color: var(--red-dark); }
+    .tickZero{ color: var(--ink); opacity: 0.5;}
+
+    .band{
+      position:absolute;
+      top:16px;
+      height:10px;
+      border-radius:5px;
+      opacity: 0.8;
+    }
+    .marker{
+      position:absolute;
+      top:11px;
+      width:20px; height:20px;
+      border-radius:50%;
+      transform:translateX(-50%);
+      border:3px solid #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      z-index: 5;
+    }
+    .hr{ height:1px; background: var(--line); margin:16px 0; }
+
+
+    /* Race Table */
+    .tableScroll{ overflow:auto; border-radius:12px; border:1px solid var(--line); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);}
+    .bucketTable{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:8px;
+      min-width:1000px;
+      background: var(--neutral-bg);
+      padding: 8px;
+    }
+    .bucketTable th{
+      text-align:left;
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:var(--muted);
+      font-weight: 700;
+      padding:8px 12px;
+      background: transparent;
+      border-bottom: 2px solid var(--line);
+      position:sticky;
+      top:0;
+      z-index:2;
+    }
+    .bucketTable td{ vertical-align:top; padding:0; }
+    
+    .raceItem{
+      width:100%;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      border-radius:8px;
+      padding:10px 12px;
+      border:1px solid var(--line);
+      background: #fff;
+      text-align:left;
+      cursor:pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      transition: all 0.15s ease;
+      margin-bottom: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+    .raceItem:hover{
+      transform:translateY(-2px);
+      box-shadow: 0 8px 16px -4px rgba(0,0,0,0.1);
+      border-color: var(--line-strong);
+    }
+    
+    .raceItem::before {
+        content: "";
+        position: absolute;
+        left: 0; top: 0; bottom: 0; width: 4px;
+    }
+    .raceItem.d::before{ background: var(--blue); }
+    .raceItem.r::before{ background: var(--red); }
+    .raceItem.t::before{ background: var(--muted-light); }
+
+    /* Race Item Internal Text */
+    .raceTop { 
+        font-size: 11px; 
+        font-weight: 700; 
+        color: var(--muted); 
+        text-transform: uppercase; 
+        letter-spacing: 0.05em; 
+    }
+    .raceName {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--ink);
+    }
+    .raceBottom {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-dim);
+        font-weight: 600;
+        margin-top: 2px;
+    }
+
+    .raceEmpty{
+      height:44px;
+      border-radius:8px;
+      border:1px dashed var(--line-strong);
+      background:rgba(0,0,0,0.01);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted-light);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    /* Error Handling */
+    .loadError{
+      margin: 10px 0 16px;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--red-border);
+      background: var(--red-soft);
+      color: var(--red-dark);
+      box-shadow: var(--card-shadow);
+      font-weight: 600;
+      line-height: 1.4;
+      font-size: 14px;
+    }
+    .loadError .mono{ font-family: var(--mono); background: rgba(255,255,255,0.5); padding: 2px 4px; border-radius: 4px; }
+
+    /* Map Interaction */
+    .state.focus, .district.focus{ 
+        stroke: var(--ink); 
+        stroke-width:2.5px; 
+        z-index: 20; 
+    }
+    
+    /* Utilities */
+    .tiny{ font-size:12px; color:var(--muted); }
+  
+    
+/* ---------- Panel header + simple seats (screenshot-style) ---------- */
+.topCard{ padding:18px 20px; }
+.panelHeaderRow{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+}
+.panelTitleWrap{ display:flex; flex-direction:column; }
+.panelTitle{
+  font-size:22px;
+  font-weight:900;
+  letter-spacing:-0.02em;
+  color: var(--ink);
+  line-height:1.05;
+}
+.panelSub{
+  font-size:14px;
+  font-weight:600;
+  color: var(--muted);
+  margin-top:6px;
+}
+.pillRow{ display:flex; align-items:center; gap:10px; }
+.metricPill{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(255,255,255,0.9);
+  border:1px solid rgba(229,231,235,0.9);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  font-weight:800;
+  font-size:14px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  user-select:none;
+  min-width: 84px;
+  justify-content:center;
+}
+.metricPill .dot{
+  width:10px; height:10px;
+  border-radius:9999px;
+  flex:0 0 auto;
+}
+.metricPill.blue .dot{ background: var(--blue); }
+.metricPill.red  .dot{ background: var(--red); }
+
+.seatsCard{ padding:0; }
+.seatsSummary{
+  min-height: 120px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:22px 18px 18px;
+  background: rgba(255,255,255,0.65);
+}
+.seatsLine{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  font-weight:900;
+  font-size:20px;
+  letter-spacing:0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.seatsSide{
+  display:flex;
+  align-items:baseline;
+  gap:10px;
+  font-family: var(--mono);
+}
+.seatsSide .lbl{ font-size:14px; font-weight:900; }
+.seatsSide .num{ font-size:20px; font-weight:900; }
+.seatsSide.d{ color: var(--blue); }
+.seatsSide.r{ color: var(--red); }
+.seatsDivider{ width:1px; height:34px; background: rgba(209,213,219,0.9); }
+
+/* tiny seat simulation histogram */
+.simMini{
+  width: min(360px, 100%);
+  margin-top: 14px;
+  margin-left:auto;
+  margin-right:auto;
+}
+.simCanvas{
+  width: 100%;
+  height: 26px;
+  display:block;
+}
+
+.simTip{
+  position:fixed;
+  z-index:90;
+  pointer-events:none;
+  background: rgba(17,24,39,0.92);
+  color:#fff;
+  padding:6px 8px;
+  border-radius:10px;
+  font-size:11px;
+  font-weight:700;
+  font-family: var(--mono);
+  line-height:1.25;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+  transform: translate(-9999px,-9999px);
+  white-space: nowrap;
+}
+.simTip .k{ font-weight:900; opacity:0.95; }
+
+.mapCard{ position:relative; }
+.mapHint{
+  padding: 0 20px 16px;
+  margin-top:-8px;
+  font-size:12px;
+  font-weight:600;
+  color: var(--muted);
+}
+
+    /* ---------- Three-panel (Senate/Gov/House) layout ---------- */
+    .triGrid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:18px;
+      margin-top: 0px;
+    }
+    @media (min-width: 980px){
+      .triGrid{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    .modeCol{
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+      min-width:0;
+    }
+    .modeHeader{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      padding: 0 4px;
+    }
+    .modeTitle{
+      font-size:16px;
+      font-weight:900;
+      letter-spacing:-0.02em;
+      color: var(--ink);
+      line-height:1.1;
+    }
+    .modeSub{
+      font-size:12px;
+      font-weight:600;
+      color: var(--muted);
+      margin-top:4px;
+    }
+    .modeTitleWrap{ display:flex; flex-direction:column; }
+    .mapGrid{ padding:16px 20px 20px; }
+    .mapSvg{ height:520px; }
+    @media (min-width: 980px){
+      .mapSvg{ height:400px; }
+      .triGrid .bucketTable{ min-width: 560px; }
+    }
+
+
+    /* ---------- House odds over time ---------- */
+    .oddsCard .oddsHead{
+      padding: 18px 20px 0;
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .oddsCard .oddsTitle{
+      font-size:14px;
+      font-weight:900;
+      letter-spacing:-0.02em;
+      color: var(--text);
+      line-height:1.1;
+    }
+    .oddsCard .oddsSub{
+      margin-top:4px;
+      font-size:12px;
+      font-weight:650;
+      color: var(--muted);
+    }
+    .oddsCard .oddsControls{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .rangeBtn{
+      appearance:none;
+      border:1px solid var(--line);
+      background: var(--card-bg);
+      color: var(--muted);
+      font-weight:700;
+      font-size:12px;
+      padding:6px 10px;
+      border-radius:999px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .rangeBtn.active{
+      color: var(--text);
+      border-color: rgba(59,130,246,0.35);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+    .rangeBtn.runBtn{
+      color: var(--text);
+      border-color: rgba(16,185,129,0.35);
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.10);
+    }
+    .oddsCard .oddsChartWrap{
+      padding: 12px 14px 8px;
+    }
+    .oddsMiniTitle{
+      font-size:12px;
+      font-weight:850;
+      letter-spacing:-0.01em;
+      color: var(--muted);
+      padding: 0 2px 6px;
+    }
+    .comboSvg{
+      width:100%;
+      height:220px;
+      display:block;
+      overflow:visible;
+    }
+    .oddsSvg{
+      width:100%;
+      height:190px;
+      display:block;
+      overflow:visible;
+    }
+    .seatsSvg{
+      width:100%;
+      height:190px;
+      display:block;
+      overflow:visible;
+    }
+    .seatsLine{
+      fill:none;
+      stroke: var(--blue-dark);
+      stroke-width:2.5;
+    }
+    .seatsDot{
+      fill: var(--blue-dark);
+      stroke: var(--card-bg);
+      stroke-width:2;
+    }
+    .seatMajLine{
+      stroke: rgba(156,163,175,0.75);
+      stroke-width:1.2;
+      stroke-dasharray:4 4;
+      shape-rendering: crispEdges;
+    }
+    .seatMajLabel{
+      fill: var(--muted);
+      font-size:11px;
+      font-weight:650;
+    }
+    .oddsLine{
+      fill:none;
+      stroke: var(--blue-soft);
+      stroke-width:2.5;
+    }
+    .oddsAxis line, .oddsAxis path{
+      stroke: var(--line);
+      stroke-width:1;
+      shape-rendering: crispEdges;
+    }
+    .oddsAxis text{
+      fill: var(--muted);
+      font-size:11px;
+      font-weight:600;
+    }
+    .oddsDot{
+      fill: var(--blue);
+      stroke: var(--card-bg);
+      stroke-width:2;
+    }
+    .oddsCard .oddsStatus{
+      padding: 0 20px 16px;
+      font-size:12px;
+      font-weight:650;
+      color: var(--muted);
+    }
+
+
+    .gbControls{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin: 10px 0 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.04);
+      border-radius: 14px;
+    }
+    .gbToggle{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:13px;
+      font-weight:700;
+      color: var(--text);
+      user-select:none;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .gbToggle input{
+      width:16px;
+      height:16px;
+      accent-color: var(--blue);
+    }
+    .gbMeta{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:12px;
+      font-weight:650;
+      color: var(--muted);
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .gbMeta .sep{ opacity:0.6; }
+
+</style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div id="loadError" class="loadError" hidden></div>
+
+<div class="triGrid" id="triGrid" aria-label="Three-panel forecast">
+
+  <!-- SENATE -->
+  <section class="modeCol" data-mode="senate">
+    <section class="card topCard">
+      <div class="panelHeaderRow">
+        <div class="panelTitleWrap">
+          <div class="panelTitle">Senate</div>
+          <div class="panelSub">Class II - 2026</div>
+        </div>
+        <div class="pillRow" aria-label="National baseline">
+          <div class="metricPill blue" aria-label="Dem baseline">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="val" data-pill-d>50.0</span>
+          </div>
+          <div class="metricPill red" aria-label="GOP baseline">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="val" data-pill-r>50.0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card seatsCard" aria-label="Projected seats">
+      <div class="seatsSummary">
+        <div class="seatsLine">
+          <div class="seatsSide d"><span class="lbl">D</span><span class="num" data-seats-d>—</span></div>
+          <div class="seatsDivider" aria-hidden="true"></div>
+          <div class="seatsSide r"><span class="lbl">R</span><span class="num" data-seats-r>—</span></div>
+        </div>
+      <div class="simMini" aria-label="Seat simulation distribution">
+          <canvas class="simCanvas" data-sim-canvas></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="card mapCard" aria-label="Map">
+      <div class="mapGrid">
+        <div class="mapStage">
+          <svg class="mapSvg" aria-label="US map"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section class="card oddsCard" aria-label="Senate odds over time">
+      <div class="oddsHead">
+        <div>
+          <div class="oddsTitle">Odds over time</div>
+</div>
+</div>
+      <div class="oddsChartWrap">
+        <div class="oddsMiniTitle">Probability and seat totals over time</div>
+        <svg class="comboSvg" data-combo-svg aria-label="Control odds and expected seats over time chart"></svg>
+      </div>
+
+    </section>
+  </section>
+
+  <!-- GOVERNOR -->
+  <section class="modeCol" data-mode="governor">
+    <section class="card topCard">
+      <div class="panelHeaderRow">
+        <div class="panelTitleWrap">
+          <div class="panelTitle">Gubernatorial</div>
+          <div class="panelSub">Gubernatorial - 2026</div>
+        </div>
+        <div class="pillRow" aria-label="National baseline">
+          <div class="metricPill blue" aria-label="Dem baseline">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="val" data-pill-d>50.0</span>
+          </div>
+          <div class="metricPill red" aria-label="GOP baseline">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="val" data-pill-r>50.0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card seatsCard" aria-label="Projected seats">
+      <div class="seatsSummary">
+        <div class="seatsLine">
+          <div class="seatsSide d"><span class="lbl">D</span><span class="num" data-seats-d>—</span></div>
+          <div class="seatsDivider" aria-hidden="true"></div>
+          <div class="seatsSide r"><span class="lbl">R</span><span class="num" data-seats-r>—</span></div>
+        </div>
+      <div class="simMini" aria-label="Seat simulation distribution">
+          <canvas class="simCanvas" data-sim-canvas></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section class="card mapCard" aria-label="Map">
+      <div class="mapGrid">
+        <div class="mapStage">
+          <svg class="mapSvg" aria-label="US map"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section class="card oddsCard" aria-label="Governor odds over time">
+      <div class="oddsHead">
+        <div>
+          <div class="oddsTitle">Odds over time</div>
+</div>
+</div>
+      <div class="oddsChartWrap">
+        <div class="oddsMiniTitle">Probability and seat totals over time</div>
+        <svg class="comboSvg" data-combo-svg aria-label="Control odds and expected seats over time chart"></svg>
+      </div>
+
+    </section>
+  </section>
+
+  <!-- HOUSE -->
+  <section class="modeCol" data-mode="house">
+    <section class="card topCard">
+      <div class="panelHeaderRow">
+        <div class="panelTitleWrap">
+          <div class="panelTitle">Congress</div>
+          <div class="panelSub">120th Congress - 2026</div>
+        </div>
+        <div class="pillRow" aria-label="National baseline">
+          <div class="metricPill blue" aria-label="Dem baseline">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="val" data-pill-d>50.0</span>
+          </div>
+          <div class="metricPill red" aria-label="GOP baseline">
+            <span class="dot" aria-hidden="true"></span>
+            <span class="val" data-pill-r>50.0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card seatsCard" aria-label="Projected seats">
+      <div class="seatsSummary">
+        <div class="seatsLine">
+          <div class="seatsSide d"><span class="lbl">D</span><span class="num" data-seats-d>—</span></div>
+          <div class="seatsDivider" aria-hidden="true"></div>
+          <div class="seatsSide r"><span class="lbl">R</span><span class="num" data-seats-r>—</span></div>
+        </div>
+      <div class="simMini" aria-label="Seat simulation distribution">
+          <canvas class="simCanvas" data-sim-canvas></canvas>
+        </div>
+      </div>
+    </section>
+
+    
+    <section class="card mapCard" aria-label="Map">
+      <div class="mapGrid">
+        <div class="mapStage">
+          <svg class="mapSvg" aria-label="US map"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section class="card oddsCard" aria-label="House odds over time">
+      <div class="oddsHead">
+        <div>
+          <div class="oddsTitle">Odds over time</div>
+</div>
+</div>
+      <div class="oddsChartWrap">
+        <div class="oddsMiniTitle">Probability and seat totals over time</div>
+        <svg class="comboSvg" data-combo-svg aria-label="Control odds and expected seats over time chart"></svg>
+      </div>
+
+    </section>
+  </section>
+
+</div>
+
+  </div>
+
+  <div id="tip" role="dialog" aria-label="State details tooltip">
+    <div class="tipTop">
+      <div class="tipHeader">
+        <div>
+          <p class="tipTitle" id="tipState">State</p>
+          <div class="tipSub">
+            <span class="badge" id="tipResultBadge"><span class="dot"></span><span id="tipWinner">—</span></span>
+            <span class="badge" id="tipProbBadge"><span class="dot"></span><span id="tipProb">—</span></span>
+          </div>
+        </div>
+        <div class="tipMeta" id="tipMeta">—</div>
+      </div>
+    </div>
+    <div class="tipBody" id="tipSliders"></div>
+  </div>
+
+  <div id="simTip" class="simTip" aria-hidden="true"></div>
+
+<script>
+/* ---------- Config ---------- */
+const PROB_ERROR_SD_PTS = 7; // hidden, used for win probabilities (state + senate majority)
+const TOOLTIP_COMPACT = true;
+const HOUSE_MC_SWING_RANGE_PTS = 7; // +/- points (House uses wider national swing)
+const HOUSE_MC_SIMS = 10000;
+const SENATE_MC_SWING_RANGE_PTS = 7; // +/- points
+const SENATE_MC_SIMS = 10000;
+const WEIGHTS = { gb:35, polls:50, ind:15 };
+const VIS = { show:12.5, likely:7.5, lean:2.5 }; // UI buckets + map filter
+
+function bucketKeyFromMargin(m){
+  if (!isFinite(m)) return null;
+  const a = Math.abs(m);
+  const side = (m < 0) ? "D" : "R";
+
+  // Safe: |margin| >= 12.5 — excluded from the table (still shown on the map)
+  if (a >= VIS.show) return null;
+
+  // Tossup: |margin| <= 2.5
+  if (a <= VIS.lean) return "Tossup";
+
+  // Lean: 2.5 < |margin| <= 7.5
+  if (a <= VIS.likely) return `Lean ${side}`;
+
+  // Likely: 7.5 < |margin| < 12.5
+  return `Likely ${side}`;
+}
+function formatMarginDR(m){
+  if (!isFinite(m)) return "—";
+  const mm = clamp(m, -25, 25); // display clamp
+  const a = Math.abs(mm);
+  if (a < 0.05) return "Tied";
+  return (mm < 0) ? `D+${a.toFixed(1)}` : `R+${a.toFixed(1)}`;
+}
+function pseudoEvtFromEl(el){
+  const r = el.getBoundingClientRect();
+  return { clientX: r.left + r.width/2, clientY: r.top + r.height/2 };
+}
+
+
+const SEAT_RULES = {
+  senate:   { total:100, majorityLine:51,  baseR:31, baseD:34 },
+  governor: { total:50,  majorityLine:26,  baseR:8,  baseD:6  },
+  house:    { total:435, majorityLine:218, baseR:0,  baseD:0  },
+};
+const SENATE_CONTROL_RULE = { demAtLeast: 51, repAtLeast: 50 };
+
+/* ---------- FIPS lookup for US-atlas ---------- */
+const FIPS_TO_USPS = {
+  1:"AL",2:"AK",4:"AZ",5:"AR",6:"CA",8:"CO",9:"CT",10:"DE",11:"DC",12:"FL",13:"GA",15:"HI",16:"ID",17:"IL",18:"IN",19:"IA",20:"KS",21:"KY",22:"LA",23:"ME",24:"MD",25:"MA",26:"MI",27:"MN",28:"MS",29:"MO",30:"MT",31:"NE",32:"NV",33:"NH",34:"NJ",35:"NM",36:"NY",37:"NC",38:"ND",39:"OH",40:"OK",41:"OR",42:"PA",44:"RI",45:"SC",46:"SD",47:"TN",48:"TX",49:"UT",50:"VT",51:"VA",53:"WA",54:"WV",55:"WI",56:"WY"
+};
+const USPS_TO_NAME = {
+  AL:"Alabama",AK:"Alaska",AZ:"Arizona",AR:"Arkansas",CA:"California",CO:"Colorado",CT:"Connecticut",DE:"Delaware",DC:"District of Columbia",
+  FL:"Florida",GA:"Georgia",HI:"Hawaii",ID:"Idaho",IL:"Illinois",IN:"Indiana",IA:"Iowa",KS:"Kansas",KY:"Kentucky",LA:"Louisiana",ME:"Maine",
+  MD:"Maryland",MA:"Massachusetts",MI:"Michigan",MN:"Minnesota",MS:"Mississippi",MO:"Missouri",MT:"Montana",NE:"Nebraska",NV:"Nevada",NH:"New Hampshire",
+  NJ:"New Jersey",NM:"New Mexico",NY:"New York",NC:"North Carolina",ND:"North Dakota",OH:"Ohio",OK:"Oklahoma",OR:"Oregon",PA:"Pennsylvania",RI:"Rhode Island",
+  SC:"South Carolina",SD:"South Dakota",TN:"Tennessee",TX:"Texas",UT:"Utah",VT:"Vermont",VA:"Virginia",WA:"Washington",WV:"West Virginia",WI:"Wisconsin",WY:"Wyoming"
+};
+function fipsToUsps(id){ const n = parseInt(id, 10); return FIPS_TO_USPS[n] || ""; }
+/* ---------- House district helpers ---------- */
+const NAME_TO_USPS = Object.fromEntries(
+  Object.entries(USPS_TO_NAME).map(([usps, name]) => [String(name).trim().toLowerCase(), usps])
+);
+
+function houseDistrictCode(usps, cd){
+  if (!usps) return "";
+  if (cd === 0) return `${usps}-AL`;
+  return `${usps}-${String(cd).padStart(2,"0")}`;
+}
+function houseDistrictName(stateName, cd){
+  if (!stateName) return "House district";
+  return (cd === 0) ? `${stateName} At-Large` : `${stateName} District ${cd}`;
+}
+
+
+/* ---------- Math helpers ---------- */
+const clamp = (x,a,b)=> Math.max(a, Math.min(b, x));
+function normalizePair(D, R){
+  const d = Number(D), r = Number(R);
+  const s = d + r;
+  if (!isFinite(s) || s <= 0) return {D:50, R:50};
+  return {D: 100*d/s, R: 100*r/s};
+}
+function marginRD(pair){ return pair.R - pair.D; } // negative = Dem lead
+function fmtLead(m){
+  if (!isFinite(m)) return "—";
+  if (Math.abs(m) < 1e-9) return "D+0.0";
+  const pts = Math.abs(m).toFixed(1);
+  return (m < 0) ? `D+${pts}` : `R+${pts}`;
+}
+function erf(x){
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x);
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const t = 1/(1+p*x);
+  const y = 1 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+function normalCDF(x){ return 0.5*(1 + erf(x/Math.SQRT2)); }
+function winProbFromMargin(m){
+  const z = m / PROB_ERROR_SD_PTS;
+  const pR = clamp(normalCDF(z), 0, 1);
+  return { pD: 1 - pR, pR };
+}
+
+/* ---------- Fast win-prob lookup (avoids millions of erf/exp calls in House MC) ---------- */
+const WINP_MIN = -40, WINP_MAX = 40, WINP_STEP = 0.1;
+const WINP_N = Math.round((WINP_MAX - WINP_MIN) / WINP_STEP) + 1;
+const WINP_PD_TABLE = new Float32Array(WINP_N);
+for (let i=0;i<WINP_N;i++){
+  const m = WINP_MIN + i*WINP_STEP;
+  WINP_PD_TABLE[i] = winProbFromMargin(m).pD;
+}
+function winProbD_fast(m){
+  if (!isFinite(m)) return 0.5;
+  const mm = clamp(m, WINP_MIN, WINP_MAX);
+  const idx = Math.round((mm - WINP_MIN) / WINP_STEP);
+  return WINP_PD_TABLE[idx] ?? 0.5;
+}
+
+/* ---------- Color ---------- */
+function interpColor(m){
+  if (!isFinite(m)) return "#e5e7eb";
+
+  const max = 25;
+  const a = Math.abs(m);
+
+  // Under 2 pts: highlight as "ultra-close" (yellow)
+  if (a < 2.0) return "rgb(253,224,71)"; // ~#fde047
+
+  const t = clamp(a/max, 0, 1);
+
+  if (m < 0){
+    // Blue ramp
+    const r = Math.round(248*(1-t) + 37*t);
+    const g = Math.round(250*(1-t) + 99*t);
+    const b = Math.round(252*(1-t) + 235*t);
+    return `rgb(${r},${g},${b})`;
+  } else {
+    // Red ramp
+    const r = Math.round(252*(1-t) + 220*t);
+    const g = Math.round(250*(1-t) + 38*t);
+    const b = Math.round(250*(1-t) + 38*t);
+    return `rgb(${r},${g},${b})`;
+  }
+}
+
+
+
+/* ---------- Data model loaded from CSV ---------- */
+const DATA = {
+  senate:   { gb:null, ratios:{}, polls:{} },
+  governor: { gb:null, ratios:{}, polls:{} },
+  house:    { gb:null, ratios:{}, polls:{}, meta:{} }, // meta: {code,name,state,cd}
+};
+function toNum(v){
+  if (v === null || v === undefined) return NaN;
+  const s = String(v).trim();
+  if (!s) return NaN;
+  const n = Number(s);
+  return isFinite(n) ? n : NaN;
+}
+
+
+async function loadCSV(){
+  const errBox = document.getElementById("loadError");
+  try{
+    const csvText = await fetch("entries_all.csv", {cache:"no-store"}).then(r=>{
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.text();
+    });
+
+    const rows = d3.csvParse(csvText);
+    if (!rows || rows.length === 0) throw new Error("CSV empty");
+
+    for (const row of rows){
+      const mode = String(row.mode || "").trim().toLowerCase();
+      if (!DATA[mode]) continue;
+
+      const st = String(row.state || "").trim().toUpperCase();
+      const ratioD = toNum(row.ratioD);
+      const ratioR = toNum(row.ratioR);
+
+      if (st && isFinite(ratioD) && isFinite(ratioR)){
+        DATA[mode].ratios[st] = {D: ratioD, R: ratioR};
+      }
+
+      const gbD = toNum(row.gbD);
+      const gbR = toNum(row.gbR);
+      if (!DATA[mode].gb && isFinite(gbD) && isFinite(gbR)){
+        DATA[mode].gb = normalizePair(gbD, gbR);
+      }
+
+      const pollD = toNum(row.pollD);
+      const pollR = toNum(row.pollR);
+      const pollS = toNum(row.pollSigma);
+      if (isFinite(pollD) && isFinite(pollR)){
+        DATA[mode].polls[st] = {
+          D: pollD,
+          R: pollR,
+          S: isFinite(pollS) ? pollS : 3
+        };
+      }
+    }
+
+    // Fill missing GBs if only one mode had it
+    if (!DATA.senate.gb && DATA.governor.gb) DATA.senate.gb = DATA.governor.gb;
+    if (!DATA.governor.gb && DATA.senate.gb) DATA.governor.gb = DATA.senate.gb;
+
+    if (errBox) errBox.hidden = true;
+    return true;
+  }catch(err){
+    if (errBox){
+      errBox.hidden = false;
+      errBox.innerHTML = `
+        Could not load <span class="mono">entries_all.csv</span> (must be in the same folder as this HTML).<br/>
+        Error: <span class="mono">${String(err.message || err)}</span><br/>
+        If you opened this as <span class="mono">file://</span>, serve it locally (e.g. <span class="mono">python3 -m http.server 8000</span>).
+      `;
+    }
+    return false;
+  }
+}
+
+
+
+async function loadHouseRatios(){
+  const errBox = document.getElementById("loadError");
+  try{
+    const csvText = await fetch("house_district_ratios_filled.csv", {cache:"no-store"}).then(r=>{
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.text();
+    });
+
+    const rows = d3.csvParse(csvText);
+    if (!rows || rows.length === 0) throw new Error("House ratios CSV empty");
+
+    for (const row of rows){
+      const rawId = String(row.path_id ?? "").trim();
+      if (!rawId) continue;
+      const did = rawId.padStart(4,"0");
+      const dRatio = toNum(row.d_ratio);
+      const rRatio = toNum(row.r_ratio);
+
+      if (isFinite(dRatio) && isFinite(rRatio)){
+        DATA.house.ratios[did] = { D: dRatio, R: rRatio };
+      }
+
+      const stateName = String(row.state_name ?? "").trim();
+      const cd = parseInt(String(row.congressional_district_number ?? "").trim(), 10);
+      const usps = NAME_TO_USPS[String(stateName).toLowerCase()] || "";
+      const code = houseDistrictCode(usps, isFinite(cd) ? cd : 0) || did;
+      const name = houseDistrictName(stateName || (USPS_TO_NAME[usps] || usps), isFinite(cd) ? cd : 0);
+
+      DATA.house.meta[did] = { code, name, state: stateName, cd: (isFinite(cd) ? cd : 0), usps };
+    }
+
+    // House generic ballot comes from the Senate CSV
+    if (!DATA.house.gb){
+      DATA.house.gb = DATA.senate.gb || DATA.governor.gb || {D:50,R:50};
+    }
+
+    if (errBox) errBox.hidden = true;
+    return true;
+  }catch(err){
+    if (errBox){
+      errBox.hidden = false;
+      errBox.innerHTML = `
+        Could not load <span class="mono">house_district_ratios_filled.csv</span> (must be in the same folder as this HTML).<br/>
+        Error: <span class="mono">${String(err.message || err)}</span><br/>
+        If you opened this as <span class="mono">file://</span>, serve it locally (e.g. <span class="mono">python3 -m http.server 8000</span>).
+      `;
+    }
+    return false;
+  }
+}
+
+
+/* ---------- Generic ballot from polls.json (generic ballot window (last-N polls)) ---------- */
+function norm(s){ return String(s||"").trim().toLowerCase().replace(/\s+/g," "); }
+function parseDate(s){
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  return new Date(+m[1], +m[2]-1, +m[3]);
+}
+
+
+/* ---------- State polling by date (manual input) ---------- */
+const STATE_POLL_SRC = {
+  file: "state_polls_by_date.csv",
+  window: 6,
+  byModeState: { senate:{}, governor:{}, house:{} }
+};
+
+async function loadStatePollsByDateCSV(){
+  // Supports two schemas:
+  // A) simple: mode,state,date,dem,rep[,sigma]
+  // B) poll-rows: office,state,end_date,candA_party,candA_pct,candB_party,candB_pct[,sigma] (like RTWH export)
+  STATE_POLL_SRC.byModeState = { senate:{}, governor:{}, house:{} };
+
+  function normMode(x){
+    const v = String(x||"").trim().toLowerCase();
+    if (!v) return "";
+    if (v === "sen" || v === "senate" || v.includes("senate")) return "senate";
+    if (v === "gov" || v === "governor" || v.includes("governor")) return "governor";
+    if (v === "house" || v === "us house" || v.includes("house")) return "house";
+    // race codes like AK-SEN, TX-GOV
+    const u = v.toUpperCase();
+    if (u.includes("SEN")) return "senate";
+    if (u.includes("GOV")) return "governor";
+    if (u.includes("HOUSE")) return "house";
+    return "";
+  }
+
+  function pickDRfromCandidates(r){
+    const aP = String(r.candA_party || r.partyA || r.candAParty || "").trim().toUpperCase();
+    const bP = String(r.candB_party || r.partyB || r.candBParty || "").trim().toUpperCase();
+    const aPct = Number(r.candA_pct ?? r.candAPct ?? r.candA ?? r.a_pct ?? r.aPct);
+    const bPct = Number(r.candB_pct ?? r.candBPct ?? r.candB ?? r.b_pct ?? r.bPct);
+
+    if (!isFinite(aPct) || !isFinite(bPct)) return {D:NaN, R:NaN};
+
+    let D = NaN, R = NaN;
+    if (aP === "D") D = aPct;
+    if (bP === "D") D = bPct;
+    if (aP === "R") R = aPct;
+    if (bP === "R") R = bPct;
+
+    return {D, R};
+  }
+
+  try{
+    const resp = await fetch(STATE_POLL_SRC.file, {cache:"no-store"});
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const txt = await resp.text();
+    const rows = d3.csvParse(txt);
+
+    for (const r of rows){
+      // mode / office / race
+      const mode = normMode(r.mode || r.office || r.Office || r.race || r.type || r.contest || "");
+      const key  = String(r.state || r.State || r.key || r.race_key || r.raceKey || "").trim().toUpperCase();
+      const dt   = parseDate(r.date || r.end_date || r.endDate || r.day || r.asof || "");
+
+      if (!mode || !STATE_POLL_SRC.byModeState[mode] || !key || !dt) continue;
+
+      // D/R direct columns (schema A)
+      let D = Number(r.dem ?? r.D ?? r.pollD ?? r.dem_pct ?? r.demPct ?? r.d ?? r.d_pct ?? r.dPct);
+      let R = Number(r.rep ?? r.R ?? r.pollR ?? r.rep_pct ?? r.repPct ?? r.r ?? r.r_pct ?? r.rPct);
+
+      // If missing, infer from candidate party columns (schema B)
+      if (!isFinite(D) || !isFinite(R)){
+        const inferred = pickDRfromCandidates(r);
+        D = inferred.D; R = inferred.R;
+      }
+
+      if (!isFinite(D) || !isFinite(R) || (D+R) <= 0) continue;
+
+      const S = Number(r.sigma ?? r.S ?? r.sd ?? r.pollSigma ?? r.moe ?? r.moe_pct);
+      const arr = (STATE_POLL_SRC.byModeState[mode][key] ||= []);
+      arr.push({date: dt, D, R, S: isFinite(S) ? S : 3});
+    }
+
+    for (const mode of Object.keys(STATE_POLL_SRC.byModeState)){
+      const mm = STATE_POLL_SRC.byModeState[mode];
+      for (const k of Object.keys(mm)){
+        mm[k].sort((a,b)=>a.date - b.date);
+      }
+    }
+    return true;
+  } catch (e){
+    console.warn("State polls by-date CSV not loaded:", e);
+    return false;
+  }
+}
+
+
+function upperBoundByDate(arr, dt){
+  let lo = 0, hi = arr.length;
+  while (lo < hi){
+    const mid = (lo + hi) >> 1;
+    if (arr[mid].date <= dt) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// Replace legacy per-state polls from entries_all.csv with rolling (last-N) averages from state_polls_by_date.csv
+// for the current "latest" date in the generic-ballot series.
+function applyLatestStatePollsToData(){
+  // Overlay DATA[mode].polls with rolling (last-N) averages from state_polls_by_date.csv
+  // as of the latest generic-ballot date. Never blank out existing polls on failure.
+  const latestStr = GB_SRC?.latest?.date || null;
+  const latestDt = parseDate(latestStr);
+  if (!latestDt) return false;
+
+  const window = Math.max(1, STATE_POLL_SRC.window|0);
+  let any = false;
+
+  for (const mode of ["senate","governor"]){
+    const src = STATE_POLL_SRC.byModeState?.[mode];
+    if (!src || !DATA[mode]) continue;
+
+    for (const st of Object.keys(DATA[mode].ratios || {})){
+      const polls = src[st];
+      if (!polls || polls.length === 0) continue;
+
+      // upperBound: first idx with date > latestDt
+      let hi = 0;
+      while (hi < polls.length && polls[hi].date <= latestDt) hi++;
+      const lo = Math.max(0, hi - window);
+      const cnt = hi - lo;
+      if (cnt <= 0) continue;
+
+      let sumD = 0, sumR = 0;
+      for (let i=lo;i<hi;i++){ sumD += polls[i].D; sumR += polls[i].R; }
+      DATA[mode].polls[st] = { D: sumD/cnt, R: sumR/cnt, S: 3 };
+      any = true;
+    }
+  }
+
+  return any;
+}
+
+function buildPollMatrixForDays(modeKey, keys, dateStrs, windowN){
+  const src = STATE_POLL_SRC.byModeState?.[modeKey];
+  if (!src) return null;
+
+  const nStates = keys.length;
+  const nDays = dateStrs.length;
+
+  const pollDDay = new Float32Array(nStates * nDays);
+  const pollRDay = new Float32Array(nStates * nDays);
+  pollDDay.fill(NaN);
+  pollRDay.fill(NaN);
+
+  const window = Math.max(1, windowN|0);
+  const dayDates = dateStrs.map(parseDate);
+
+  for (let i=0;i<nStates;i++){
+    const k = keys[i];
+    const polls = src[k] || null;
+    if (!polls || polls.length===0) continue;
+
+    const m = polls.length;
+    const psD = new Float64Array(m+1);
+    const psR = new Float64Array(m+1);
+    for (let j=0;j<m;j++){
+      psD[j+1] = psD[j] + polls[j].D;
+      psR[j+1] = psR[j] + polls[j].R;
+    }
+
+    let hi = 0;
+    for (let day=0; day<nDays; day++){
+      const dt = dayDates[day];
+      if (!dt) continue;
+      while (hi < m && polls[hi].date <= dt) hi++;
+      const lo = Math.max(0, hi - window);
+      const cnt = hi - lo;
+      if (cnt <= 0) continue;
+
+      pollDDay[day*nStates + i] = (psD[hi]-psD[lo]) / cnt;
+      pollRDay[day*nStates + i] = (psR[hi]-psR[lo]) / cnt;
+    }
+  }
+
+  return { pollDDay, pollRDay, nStates, nDays };
+}
+
+function computeIndicatorNationalFromPollMatrix(modeKey, arr, pm, dayIndex){
+  if (!pm) return null;
+  const {pollDDay, pollRDay, nStates, nDays} = pm;
+  const day = clamp(dayIndex|0, 0, nDays-1);
+
+  const implied = [];
+  for (let i=0;i<nStates;i++){
+    const D = pollDDay[day*nStates + i];
+    const R = pollRDay[day*nStates + i];
+    if (!isFinite(D) || !isFinite(R) || (D+R)<=0) continue;
+    const p = normalizePair(D, R);
+    const rd = arr.ratioD[i] || 1;
+    const rr = arr.ratioR[i] || 1;
+    implied.push({ D: p.D / rd, R: p.R / rr });
+  }
+  if (implied.length === 0) return null;
+
+  const Ds = implied.map(x=>x.D);
+  const Rs = implied.map(x=>x.R);
+  return { D: median(Ds), R: median(Rs) };
+}
+
+function ds(d){
+  if (!(d instanceof Date)) d = new Date(d);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function getAns(p, keys){
+  if (!p || !Array.isArray(p.answers)) return null;
+  const want = (keys||[]).map(norm);
+  for (const a of p.answers){
+    const c = norm(a.choice || "");
+    if (want.includes(c)) return +a.pct;
+  }
+  // Some polls store full names; fall back to substring match
+  for (const a of p.answers){
+    const c = norm(a.choice || "");
+    for (const k of want){
+      if (c===k) return +a.pct;
+      if (c.includes(k)) return +a.pct;
+    }
+  }
+  return null;
+}
+function calcLastNPollsSeries(gbPolls, N){
+  const polls = (gbPolls||[]).filter(p=>p && p.date instanceof Date && isFinite(p.dem) && isFinite(p.rep))
+    .slice().sort((a,b)=>a.date-b.date);
+  if (!polls.length) return [];
+  const n = polls.length;
+
+  const dates = new Array(n);
+  const psD = new Float64Array(n+1);
+  const psR = new Float64Array(n+1);
+
+  for (let i=0;i<n;i++){
+    dates[i] = polls[i].date;
+    const d = +polls[i].dem;
+    const r = +polls[i].rep;
+    psD[i+1] = psD[i] + d;
+    psR[i+1] = psR[i] + r;
+  }
+
+  const t0 = new Date(dates[0]);
+  const lastPollDay = new Date(dates[n-1]);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const t1 = (today > lastPollDay) ? new Date(today) : lastPollDay;
+  const out = [];
+  let hi = 0;
+
+  for (let day = new Date(t0); day <= t1; day.setDate(day.getDate()+1)){
+    while (hi < n && dates[hi] <= day) hi++;
+    const lo = Math.max(0, hi - N);
+    const cnt = hi - lo;
+    if (cnt <= 0) continue;
+    const meanD = (psD[hi] - psD[lo]) / cnt;
+    const meanR = (psR[hi] - psR[lo]) / cnt;
+    out.push({ date: ds(day), dem: meanD, rep: meanR, count: cnt });
+  }
+  return out;
+}
+
+/* ---------- Generic ballot pollster allowlist (Strict Allowlist) ---------- */
+const AP=[{label:"YouGov",pattern:/yougov/},{label:"Verasight",pattern:/verasight/},{label:"Ipsos",pattern:/ipsos/},{label:"ARG",pattern:/americanresearchgroup|arg\b/},{label:"TIPP",pattern:/tipp/},{label:"Emerson",pattern:/emerson/},{label:"Gallup",pattern:/gallup/},{label:"Marist",pattern:/marist/},{label:"Quinnipiac",pattern:/quinnipiac/},{label:"AP-NORC",pattern:/apnorc|ap\-norc|norc/},{label:"Marquette",pattern:/marquette/},{label:"CNN/SSRS",pattern:/cnnssrs|cnn\/ssrs|ssrs/},{label:"AtlasIntel",pattern:/atlasintel|atlas/},{label:"Beacon/Shaw",pattern:/beaconresearch|shaw/},{label:"Hart/POS",pattern:/hartresearch|publicopinionstrategies/},{label:"Pew",pattern:/pewresearch|pew/},{label:"SurveyMonkey",pattern:/surveymonkey/},{label:"Leger",pattern:/leger/},{label:"UMass",pattern:/massachusetts|umass|departmentofpoliticalscience/},{label:"NYT/Siena",pattern:/siena|newyorktimes/},{label:"Fox News",pattern:/foxnews/},{label:"WSJ",pattern:/wallstreetjournal|wsj/}];
+
+function normPollster(s){
+  return String(s||"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g,"");
+}
+function isAllowedPollster(pollster, strict){
+  if (!strict) return true;
+  const n = normPollster(pollster);
+  if (!n) return false;
+  return AP.some(x=>x.pattern.test(n));
+}
+
+function updateGbControlsMeta(){
+  const w = document.getElementById("gbWindow");
+  if (w) w.textContent = String(GB_SRC.windowPolls);
+
+  const lastEl = document.getElementById("gbLastDate");
+  if (lastEl){
+    const end = GB_SRC.latest?.date || "—";
+    const lastPoll = GB_SRC.lastPollDate || "—";
+    const cnt = GB_SRC.latest?.count;
+    const cntTxt = isFinite(cnt) ? ` (count=${cnt})` : "";
+    lastEl.textContent = `End: ${end} (last poll: ${lastPoll})${cntTxt}`;
+  }
+}
+
+function buildGbSeriesFromRaw(){
+  const raw = Array.isArray(GB_SRC.raw) ? GB_SRC.raw : [];
+  const strict = !!GB_SRC.filterStrict;
+  const gbPolls = raw.filter(p=>p && p.date instanceof Date && isFinite(p.dem) && isFinite(p.rep) && isAllowedPollster(p.pollster, strict))
+    .slice().sort((a,b)=>a.date-b.date);
+
+  GB_SRC.lastPollDate = gbPolls.length ? ds(gbPolls[gbPolls.length-1].date) : null;
+
+  const series = calcLastNPollsSeries(gbPolls, GB_SRC.windowPolls);
+  series.sort((a,b)=>a.date.localeCompare(b.date));
+  GB_SRC.series = series;
+  GB_SRC.latest = series.length ? series[series.length-1] : null;
+
+  if (GB_SRC.latest){
+    const pair = normalizePair(GB_SRC.latest.dem, GB_SRC.latest.rep);
+    DATA.house.gb = pair;
+    if (DATA.senate) DATA.senate.gb = pair;
+    if (DATA.governor) DATA.governor.gb = pair;
+  }
+
+  updateGbControlsMeta();
+  return series;
+}
+
+
+
+const GB_SRC = { windowPolls: 24, series: null, latest: null, updatedAt: null, filterStrict: true, raw: null, lastPollDate: null };
+
+async function loadGenericBallotFromPollsJSON(){
+  try{
+    const j = await fetch("polls.json", {cache:"no-store"}).then(r=>{
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
+
+    GB_SRC.updatedAt = j.updatedAt || null;
+
+    const gbRaw = Array.isArray(j.genericBallot) ? j.genericBallot : [];
+    const gbPollsRaw = gbRaw.map(p=>{
+      const date = parseDate(p.end_date || p.start_date || p.created_at);
+      const dem = getAns(p, ["dem","democrat","democrats","democratic"]);
+      const rep = getAns(p, ["rep","republican","republicans","gop"]);
+      const pollster = p.pollster || p.pollster_name || p.pollsterName || p.sponsor || p.firm || p.source || "";
+      return { date, dem, rep, pollster };
+    }).filter(p=>p.date && isFinite(p.dem) && isFinite(p.rep));
+
+    GB_SRC.raw = gbPollsRaw;
+
+    // Build series using last N polls (N=GB_SRC.windowPolls), filtered by Strict Allowlist if enabled,
+    // and extend to today (flat after last poll).
+    return buildGbSeriesFromRaw();
+  }catch(err){
+    console.warn("polls.json generic ballot load failed:", err);
+    return null;
+  }
+}
+
+
+function resetOddsWorkers(){
+  try{
+    if (HOUSE_ODDS_WORKER){ HOUSE_ODDS_WORKER.terminate(); HOUSE_ODDS_WORKER = null; }
+  }catch(e){}
+  try{
+    if (STATE_ODDS_WORKER){ STATE_ODDS_WORKER.terminate(); STATE_ODDS_WORKER = null; }
+  }catch(e){}
+  for (const k in STATE_ODDS_PENDING) delete STATE_ODDS_PENDING[k];
+}
+
+function refreshAllAfterGbChange(){
+  // clear caches tied to GB series
+  try{ TIP_SPARK_CACHE.clear(); }catch(e){}
+
+  buildGbSeriesFromRaw();
+
+  // refresh maps + tables
+  for (const mode of MODES){
+    try{ recolorMapForMode(mode); }catch(e){}
+    try{ renderBucketTableForMode(mode); }catch(e){}
+    try{ updateSeatMeterFor(mode); }catch(e){}
+  }
+
+  // rerun odds charts
+  resetOddsWorkers();
+  for (const mode of MODES){
+    try{ runOddsOverTime(mode, ODDS_RANGE?.[mode] || "all"); }catch(e){}
+  }
+}
+
+function setupGbControlsUI(){
+  const cb = document.getElementById("gbStrict");
+  if (!cb) return;
+  cb.checked = !!GB_SRC.filterStrict;
+  cb.addEventListener("change", ()=>{
+    GB_SRC.filterStrict = !!cb.checked;
+    refreshAllAfterGbChange();
+  });
+  updateGbControlsMeta();
+}
+
+
+/* ---------- Model computation ---------- */
+function computeGenericBallotState(gb, ratio){
+  return normalizePair(gb.D * ratio.D, gb.R * ratio.R);
+}
+function computePollState(poll){
+  if (!poll) return null;
+  const D = Number(poll.D), R = Number(poll.R);
+  if (!isFinite(D) || !isFinite(R) || (D+R)<=0) return null;
+  return normalizePair(D, R);
+}
+function median(arr){
+  const a = arr.filter(x=>isFinite(x)).slice().sort((x,y)=>x-y);
+  const n = a.length;
+  if (n===0) return NaN;
+  const mid = Math.floor(n/2);
+  return (n%2===1) ? a[mid] : (a[mid-1]+a[mid])/2;
+}
+function computeIndicatorNationalFromPolls(modeKey){
+  const ratios = DATA[modeKey].ratios;
+  const polls = DATA[modeKey].polls;
+
+  const implied = [];
+  for (const st of Object.keys(ratios)){
+    const p = computePollState(polls[st]);
+    if (!p) continue;
+    const r = ratios[st];
+    implied.push({ D: p.D / r.D, R: p.R / r.R });
+  }
+  if (implied.length === 0) return null;
+
+  const Ds = implied.map(x=>x.D);
+  const Rs = implied.map(x=>x.R);
+  const medD = median(Ds);
+  const medR = median(Rs);
+  return normalizePair(medD, medR);
+}
+function computeIndicatorState(indNat, ratio){
+  return normalizePair(indNat.D * ratio.D, indNat.R * ratio.R);
+}
+function weightedCombine(components){
+  let W=0, D=0, R=0, sig2=0;
+  for (const c of components){
+    if (!c || !c.pair || !isFinite(c.w) || c.w<=0) continue;
+    W += c.w;
+    D += c.w * c.pair.D;
+    R += c.w * c.pair.R;
+    sig2 += c.w * (c.sigma*c.sigma);
+  }
+  if (W<=0) return {pair:{D:50,R:50}, sigma:6};
+  return { pair: normalizePair(D/W, R/W), sigma: Math.sqrt(sig2/W) };
+}
+
+function getStateModel(modeKey, st, cachedIndNat){
+  const gb = DATA[modeKey].gb || {D:50,R:50};
+  const ratios = DATA[modeKey].ratios;
+  const ratio = ratios[st];
+  if (!ratio) return null;
+
+  const gbPair = computeGenericBallotState(gb, ratio);
+
+  const pollRaw = DATA[modeKey].polls[st];
+  const pollPair = computePollState(pollRaw);
+  const pollSigma = pollRaw && isFinite(Number(pollRaw.S)) ? Number(pollRaw.S) : 3;
+
+  const indNat = cachedIndNat; // computed once per mode
+  const indPair = (indNat) ? computeIndicatorState(indNat, ratio) : null;
+
+  const comps = [
+    { pair: gbPair,   w: WEIGHTS.gb,              sigma: 5 },
+    { pair: pollPair, w: pollPair ? WEIGHTS.polls : 0, sigma: pollSigma },
+    { pair: indPair,  w: indPair ? WEIGHTS.ind : 0,     sigma: 5 },
+  ];
+  const combined = weightedCombine(comps);
+
+  const mFinal = marginRD(combined.pair);
+  const winProb = winProbFromMargin(mFinal);
+
+  return { gbPair, pollPair, indPair, combinedPair: combined.pair, combinedSigma: combined.sigma, winProb };
+}
+
+
+function getHouseModel(did){
+  const gb = DATA.house.gb || DATA.senate.gb || DATA.governor.gb || {D:50,R:50};
+  const ratio = DATA.house.ratios[did];
+  if (!ratio) return null;
+
+  const gbPair = computeGenericBallotState(gb, ratio);
+  const combinedPair = gbPair;
+  const combinedSigma = 5;
+
+  const mFinal = marginRD(combinedPair);
+  const winProb = winProbFromMargin(mFinal);
+
+  return { gbPair, combinedPair, combinedSigma, winProb };
+}
+
+/* ---------- Majority probability (exact Poisson-binomial) ---------- */
+function chamberMajorityProbExact(modeKey, cachedIndNat){
+  const rules = SEAT_RULES[modeKey];
+  const ratios = DATA[modeKey].ratios;
+
+  const upSeats = rules.total - rules.baseD - rules.baseR;
+  const keys = Object.keys(ratios);
+  const modeled = keys.length;
+  const missing = Math.max(0, upSeats - modeled);
+
+  const pDem = [];
+  for (const key of keys){
+    const m = (modeKey === "house")
+      ? getHouseModel(key)
+      : getStateModel(modeKey, key, cachedIndNat);
+    pDem.push(m ? m.winProb.pD : 0.5);
+  }
+  for (let i=0;i<missing;i++) pDem.push(0.5);
+
+  let dist = new Array(pDem.length+1).fill(0);
+  dist[0] = 1;
+  for (let i=0;i<pDem.length;i++){
+    const p = clamp(pDem[i], 0, 1);
+    const nxt = new Array(pDem.length+1).fill(0);
+    for (let k=0;k<=i;k++){
+      nxt[k]   += dist[k] * (1-p);
+      nxt[k+1] += dist[k] * p;
+    }
+    dist = nxt;
+  }
+
+  const needWinsForDemMajority = Math.max(0, rules.majorityLine - rules.baseD);
+  let pDemMaj = 0;
+  for (let k=needWinsForDemMajority; k<dist.length; k++) pDemMaj += dist[k];
+
+  const pRepMaj = clamp(1 - pDemMaj, 0, 1);
+  return { pDemMaj, pRepMaj, upSeats, modeled, missing };
+}
+function senateMajorityProbExact(cachedIndNat){ return chamberMajorityProbExact("senate", cachedIndNat); }
+function houseMajorityProbExact(){ return chamberMajorityProbExact("house", null); }
+
+
+/* ---------- UI: sliders ---------- */
+function chevronSVG(){
+  return `
+    <svg class="chev" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M8 10l4-4 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 14l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
+}
+
+
+function sliderHTML(title, m, sigma){
+  const min=-25, max=25;
+  const mm = clamp(m, min, max);
+  const left = clamp(mm - sigma, min, max);
+  const right= clamp(mm + sigma, min, max);
+  const toPct = v => ((v-min)/(max-min))*100;
+
+  const markerLeft = toPct(mm);
+  const bandLeft = toPct(left);
+  const bandWidth = Math.max(0, toPct(right) - toPct(left));
+
+  const crosses0 = (left < 0 && right > 0);
+  let bandBg = "";
+  if (crosses0){
+    const pivot = ((0-left)/(right-left))*100;
+    bandBg = `linear-gradient(to right, var(--blue-soft) 0%, var(--blue-soft) ${pivot}%, var(--red-soft) ${pivot}%, var(--red-soft) 100%)`;
+  } else if (right <= 0) bandBg = `var(--blue-soft)`;
+  else bandBg = `var(--red-soft)`;
+
+  const markerBg = (mm < 0) ? "var(--blue)" : (mm > 0 ? "var(--red)" : "var(--zero)");
+
+  const ticks = [-25,-15,-5,0,5,15,25].map(t=>{
+    const p = toPct(t);
+    const cls = (t===0) ? "tickLabel tickZero" : (t<0 ? "tickLabel tickBlue" : "tickLabel tickRed");
+    const glCls = (t===0) ? "gridline zeroLine" : "gridline";
+    return `
+      <div class="${glCls}" style="left:${p}%"></div>
+      <div class="${cls}" style="left:${p}%">${t}</div>
+    `;
+  }).join("");
+
+  return `
+    <div class="sliderBlock">
+      <div class="sliderLabelRow">
+        <div class="sliderLabel">${title} ${chevronSVG()}</div>
+        <div class="sliderValue">${fmtLead(mm)}</div>
+      </div>
+      <div class="axis">
+        ${ticks}
+        <div class="band" style="left:${bandLeft}%; width:${bandWidth}%; background:${bandBg};"></div>
+        <div class="marker" style="left:${markerLeft}%; background:${markerBg};"></div>
+      </div>
+    </div>
+  `;
+}
+
+function sliderEmptyHTML(title, note="No data"){
+  const min=-25, max=25;
+  const toPct = v => ((v-min)/(max-min))*100;
+  const ticks = [-25,-15,-5,0,5,15,25].map(t=>{
+    const p = toPct(t);
+    const cls = (t===0) ? "tickLabel tickZero" : (t<0 ? "tickLabel tickBlue" : "tickLabel tickRed");
+    const glCls = (t===0) ? "gridline zeroLine" : "gridline";
+    return `
+      <div class="${glCls}" style="left:${p}%"></div>
+      <div class="${cls}" style="left:${p}%">${t}</div>
+    `;
+  }).join("");
+  return `
+    <div class="sliderBlock">
+      <div class="sliderLabelRow">
+        <div class="sliderLabel">${title} ${chevronSVG()}</div>
+        <div class="sliderValue">${note}</div>
+      </div>
+      <div class="axis">${ticks}</div>
+    </div>
+  `;
+}
+
+
+function miniMeterHTML(label, m, note=null){
+  const min = -25, max = 25;
+  const safeLabel = label;
+
+  if (!isFinite(m)){
+    const val = (note !== null) ? note : "—";
+    return `
+      <div class="miniRow">
+        <div class="miniLbl">${safeLabel}</div>
+        <div class="miniVal">${val}</div>
+        <div class="miniBar"><div class="miniZero"></div></div>
+      </div>
+    `;
+  }
+
+  const overflow = Math.abs(m) > max;
+
+  // Visual scale stays at +/-25 for readability,
+  // but the numeric readout should show the true value.
+  const mm = clamp(m, min, max);
+  const p = ((mm - min) / (max - min)) * 100;
+
+  const cls = (m < 0) ? "blue" : (m > 0 ? "red" : "neutral");
+
+  // Normal: fill from 0-line. Overflow: fill the whole bar (so it doesn't look like "exactly 25").
+  const left = overflow ? 0 : Math.min(50, p);
+  const width = overflow ? 100 : Math.abs(p - 50);
+
+  return `
+    <div class="miniRow">
+      <div class="miniLbl">${safeLabel}</div>
+      <div class="miniVal">${fmtLead(m)}</div>
+      <div class="miniBar">
+        <div class="miniZero"></div>
+        <div class="miniFill ${cls}" style="left:${left}%; width:${width}%;"></div>
+        <div class="miniDot ${cls}" style="left:${p}%"></div>
+      </div>
+    </div>
+  `;
+}
+
+
+function buildDetailHTML(modeKey, key, cachedIndNat){
+  const rows = [];
+
+  if (modeKey === "house"){
+    const model = getHouseModel(key);
+    if (!model) return { header:null, body:`<div class="tiny">No model for this district.</div>` };
+
+    const mFinal = marginRD(model.combinedPair);
+    const gbM = marginRD(model.gbPair);
+
+    const pD = Math.round(model.winProb.pD*100);
+    const pR = Math.round(model.winProb.pR*100);
+
+    rows.push(miniMeterHTML("Generic ballot", gbM));
+    rows.push(miniMeterHTML("Polls", NaN, "—"));
+    rows.push(miniMeterHTML("National trend", NaN, "—"));
+    rows.push(miniMeterHTML("Final", mFinal));
+
+    return {
+      header: {
+        resultText: `${fmtLead(mFinal)}`,
+        probText: `D ${pD}% · R ${pR}%`,
+        metaText: `D ${model.combinedPair.D.toFixed(1)} · R ${model.combinedPair.R.toFixed(1)}`,
+        mFinal
+      },
+      body: rows.join("")
+    };
+  }
+
+  const model = getStateModel(modeKey, key, cachedIndNat);
+  if (!model) return { header:null, body:`<div class="tiny">No model for this state.</div>` };
+
+  const mFinal = marginRD(model.combinedPair);
+  const gbM = marginRD(model.gbPair);
+  const pollM = model.pollPair ? marginRD(model.pollPair) : NaN;
+  const indM  = model.indPair  ? marginRD(model.indPair)  : NaN;
+
+  rows.push(miniMeterHTML("Generic ballot", gbM));
+  rows.push(model.pollPair ? miniMeterHTML("Polls", pollM) : miniMeterHTML("Polls", NaN, "—"));
+  rows.push((cachedIndNat && model.indPair) ? miniMeterHTML("National trend", indM) : miniMeterHTML("National trend", NaN, "—"));
+  rows.push(miniMeterHTML("Final", mFinal));
+
+  const pD = Math.round(model.winProb.pD*100);
+  const pR = Math.round(model.winProb.pR*100);
+
+  return {
+    header: {
+      resultText: `${fmtLead(mFinal)}`,
+      probText: `D ${pD}% · R ${pR}%`,
+      metaText: `D ${model.combinedPair.D.toFixed(1)} · R ${model.combinedPair.R.toFixed(1)}`,
+      mFinal
+    },
+    body: rows.join("")
+  };
+}
+
+
+/* ---------- Tooltip ---------- */
+const tip = document.getElementById("tip");
+const tipState = document.getElementById("tipState");
+const tipWinner = document.getElementById("tipWinner");
+const tipProb = document.getElementById("tipProb");
+const tipMeta = document.getElementById("tipMeta");
+const tipSliders = document.getElementById("tipSliders");
+const tipResultBadge = document.getElementById("tipResultBadge");
+const tipProbBadge = document.getElementById("tipProbBadge");
+
+const TIP_SPARK_MAX_POINTS = 360;
+const TIP_SPARK_CACHE = new Map();
+
+function tipSparkHTML(){
+  return `
+    <div class="tipSparkWrap" aria-label="Probability over time">
+      <div class="tipSparkTitle">
+        <span>P(D win) over time</span>
+        <span class="mono" id="tipSparkVal">—</span>
+      </div>
+      <canvas id="tipSpark" aria-hidden="false"></canvas>
+    </div>
+  `;
+}
+
+function subsetGbSeriesByDays(days){
+  const series = GB_SRC.series || [];
+  if (!series.length) return [];
+  if (!isFinite(days) || days <= 0) return series.slice();
+
+  const last = parseDate(series[series.length-1].date);
+  const cutoff = new Date(last);
+  cutoff.setDate(cutoff.getDate() - (days - 1));
+  return series.filter(p => parseDate(p.date) >= cutoff);
+}
+
+function getTipSparkDays(modeKey){
+  const rng = ODDS_RANGE?.[modeKey] || "all";
+  if (rng === "all") return NaN; // all history
+  const d = parseInt(rng, 10);
+  return (isFinite(d) && d > 0) ? d : NaN;
+}
+
+function drawProbSpark(canvas, values){
+  if (!canvas) return;
+  const rect = canvas.getBoundingClientRect();
+  const cssW = Math.max(140, Math.round(rect.width || 240));
+  const cssH = Math.max(40, Math.round(rect.height || 60));
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  if (!values || values.length < 2){
+    // baseline only
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(0, cssH*0.5);
+    ctx.lineTo(cssW, cssH*0.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
+
+  const rootStyle = getComputedStyle(document.documentElement);
+  const blue = rootStyle.getPropertyValue("--blue").trim() || "#2563eb";
+  const grid = "rgba(0,0,0,0.12)";
+  const line = blue;
+
+  // grid: 25/50/75%
+  ctx.strokeStyle = grid;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const frac of [0.25, 0.5, 0.75]){
+    const y = cssH * (1 - frac);
+    ctx.moveTo(0, y);
+    ctx.lineTo(cssW, y);
+  }
+  ctx.stroke();
+
+  // line
+  ctx.strokeStyle = line;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  const n = values.length;
+  for (let i=0;i<n;i++){
+    const p = Math.max(0, Math.min(1, values[i]));
+    const x = (i/(n-1)) * (cssW-1);
+    const y = (1 - p) * (cssH-1);
+    if (i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+
+function computeWinProbSeries(modeKey, key, cachedIndNat, gbSub){
+  const out = [];
+  const series = gbSub || [];
+  if (!series.length) return out;
+
+  if (modeKey === "house"){
+    const ratio = DATA.house.ratios[key];
+    if (!ratio) return out;
+    for (const pt of series){
+      const gbNat = normalizePair(+pt.dem, +pt.rep);
+      const gbPair = computeGenericBallotState(gbNat, ratio);
+      const pD = winProbFromMargin(marginRD(gbPair)).pD;
+      out.push(pD);
+    }
+    return out;
+  }
+
+  const ratios = DATA[modeKey].ratios;
+  const ratio = ratios[key];
+  if (!ratio) return out;
+
+  const pollRaw = DATA[modeKey].polls[key];
+  const pollPair = computePollState(pollRaw);
+  const pollSigma = pollRaw && isFinite(Number(pollRaw.S)) ? Number(pollRaw.S) : 3;
+
+  const indNat = cachedIndNat;
+  const indPair = (indNat) ? computeIndicatorState(indNat, ratio) : null;
+
+  for (const pt of series){
+    const gbNat = normalizePair(+pt.dem, +pt.rep);
+    const gbPair = computeGenericBallotState(gbNat, ratio);
+
+    const comps = [
+      { pair: gbPair,   w: WEIGHTS.gb,              sigma: 5 },
+      { pair: pollPair, w: pollPair ? WEIGHTS.polls : 0, sigma: pollSigma },
+      { pair: indPair,  w: indPair ? WEIGHTS.ind : 0,     sigma: 5 },
+    ];
+    const combined = weightedCombine(comps);
+    const pD = winProbFromMargin(marginRD(combined.pair)).pD;
+    out.push(pD);
+  }
+  return out;
+}
+
+function renderTipSpark(modeKey, key, cachedIndNat){
+  const canvas = document.getElementById("tipSpark");
+  const label = document.getElementById("tipSparkVal");
+  if (!canvas) return;
+
+  const days = getTipSparkDays(modeKey);
+  const gbSub = subsetGbSeriesByDays(days);
+  const cacheKey = `${modeKey}|${key}|${days}|${GB_SRC.windowPolls}|${gbSub.length}`;
+
+  let vals = TIP_SPARK_CACHE.get(cacheKey);
+  if (!vals){
+    vals = computeWinProbSeries(modeKey, key, cachedIndNat, gbSub);
+    TIP_SPARK_CACHE.set(cacheKey, vals);
+  }
+
+  if (label && vals && vals.length){
+    const last = vals[vals.length-1];
+    label.textContent = `Latest ${Math.round(last*100)}%`;
+  } else if (label){
+    label.textContent = "—";
+  }
+
+  let drawVals = vals;
+  if (drawVals && drawVals.length > TIP_SPARK_MAX_POINTS){
+    const step = Math.ceil(drawVals.length / TIP_SPARK_MAX_POINTS);
+    const tmp = [];
+    for (let i=0;i<drawVals.length;i+=step) tmp.push(drawVals[i]);
+    // ensure last point included
+    if (tmp[tmp.length-1] !== drawVals[drawVals.length-1]) tmp.push(drawVals[drawVals.length-1]);
+    drawVals = tmp;
+  }
+
+  drawProbSpark(canvas, drawVals);
+}
+
+
+
+
+function showTooltip(evt, modeKey, key, cachedIndNat){
+  const detail = buildDetailHTML(modeKey, key, cachedIndNat);
+  if (!detail.header) return;
+
+  const { resultText, probText, metaText, mFinal } = detail.header;
+
+  if (modeKey === "house"){
+    const meta = DATA.house.meta[key] || {};
+    const code = meta.code || key;
+    tipState.textContent = code;
+    tipMeta.textContent = (meta.name ? `${meta.name} · ${metaText}` : metaText);
+  } else {
+    const name = USPS_TO_NAME[key] || key;
+    tipState.textContent = `${name} (${key})`;
+    tipMeta.textContent = metaText;
+  }
+
+  const resDot = tipResultBadge.querySelector(".dot");
+  resDot.classList.toggle("blue", mFinal <= 0);
+  resDot.classList.toggle("red",  mFinal > 0);
+
+  tipWinner.textContent = resultText;
+  tipProb.textContent = probText;
+
+  const probDot = tipProbBadge.querySelector(".dot");
+  const pd = parseInt(probText.match(/D\s(\d+)%/)?.[1] || "50", 10);
+  const pr = parseInt(probText.match(/R\s(\d+)%/)?.[1] || "50", 10);
+  if (pd > pr){ probDot.classList.add("blue"); probDot.classList.remove("red"); }
+  else if (pr > pd){ probDot.classList.add("red"); probDot.classList.remove("blue"); }
+  else { probDot.classList.remove("blue"); probDot.classList.remove("red"); }
+
+  tip.classList.toggle("compact", TOOLTIP_COMPACT);
+  tipSliders.innerHTML = detail.body + ((GB_SRC.series && GB_SRC.series.length) ? tipSparkHTML() : "");
+
+  tip.style.transform = "translate(0,0)";
+  positionTooltip(evt);
+
+  if (GB_SRC.series && GB_SRC.series.length){
+    requestAnimationFrame(()=>renderTipSpark(modeKey, key, cachedIndNat));
+  }
+}
+
+function positionTooltip(evt){
+  const pad = 14;
+  const w = tip.offsetWidth;
+  const h = tip.offsetHeight;
+
+  let x = evt.clientX + pad;
+  let y = evt.clientY + pad;
+
+  if (x + w + pad > window.innerWidth) x = evt.clientX - w - pad;
+  if (y + h + pad > window.innerHeight) y = evt.clientY - h - pad;
+
+  tip.style.left = x + "px";
+  tip.style.top  = y + "px";
+}
+function hideTooltip(){ tip.style.transform = "translate(-9999px,-9999px)"; }
+
+/* ---------- Mini histogram hover ---------- */
+const simTip = document.getElementById("simTip");
+function showSimTip(evt, html){
+  if (!simTip) return;
+  simTip.innerHTML = html;
+  const pad = 12;
+
+  // Ensure size is measured
+  simTip.style.transform = "translate(0,0)";
+  simTip.style.left = "0px";
+  simTip.style.top  = "0px";
+
+  const w = simTip.offsetWidth;
+  const h = simTip.offsetHeight;
+
+  let x = evt.clientX + pad;
+  let y = evt.clientY + pad;
+
+  if (x + w + pad > window.innerWidth) x = evt.clientX - w - pad;
+  if (y + h + pad > window.innerHeight) y = evt.clientY - h - pad;
+
+  simTip.style.left = x + "px";
+  simTip.style.top  = y + "px";
+}
+function hideSimTip(){
+  if (!simTip) return;
+  simTip.style.transform = "translate(-9999px,-9999px)";
+}
+
+function binSeatRange(hist, idx){
+  const span = (hist.max - hist.min) || 1;
+  const loF = hist.min + (idx / hist.bins) * span;
+  const hiF = hist.min + ((idx + 1) / hist.bins) * span;
+
+  let lo = Math.floor(loF + 1e-9);
+  let hi = Math.floor(hiF - 1e-9);
+  if (hi < lo) hi = lo;
+
+  return { lo, hi };
+}
+
+function ensureSimHover(canvas){
+  if (!canvas || canvas._simHoverAttached) return;
+  canvas._simHoverAttached = true;
+
+  canvas.addEventListener("mousemove", (ev)=>{
+    const meta = canvas._simMeta;
+    if (!meta || !meta.hist || !meta.hist.counts) return hideSimTip();
+
+    const rect = canvas.getBoundingClientRect();
+    const x = ev.clientX - rect.left;
+
+    const counts = meta.hist.counts;
+    const n = counts.length || 1;
+    let idx = Math.floor((x / rect.width) * n);
+    if (idx < 0) idx = 0;
+    if (idx >= n) idx = n - 1;
+
+    const total = meta.total || counts.reduce((a,b)=>a+b,0) || 1;
+    const pct = (counts[idx] / total) * 100;
+
+    const bs = (meta.hist.binSize && isFinite(meta.hist.binSize)) ? meta.hist.binSize : 1;
+    const startSeat = (meta.hist.min ?? 0) + idx*bs;
+    const endSeat = startSeat + (bs - 1);
+
+    const seatLabel = (bs > 1) ? `${startSeat}–${endSeat}` : `${startSeat}`;
+
+    showSimTip(ev,
+      `<div><span class="k">D seats:</span> ${seatLabel}</div>` +
+      `<div><span class="k">Freq:</span> ${pct.toFixed(1)}%</div>`
+    );
+  });
+
+  canvas.addEventListener("mouseleave", hideSimTip);
+}
+
+
+/* ---------- Multi-panel (Senate / Governor / House) ---------- */
+
+const MODES = ["senate","governor","house"];
+const IND_CACHE = { senate:null, governor:null, house:null };
+
+const UI = {};   // per-mode element handles
+const MAP = {};  // per-mode map handles
+
+
+function initUI(mode){
+  const root = document.querySelector(`.modeCol[data-mode='${mode}']`);
+  if (!root) return null;
+
+  UI[mode] = {
+    root,
+    // top pills
+    pillD: root.querySelector("[data-pill-d]"),
+    pillR: root.querySelector("[data-pill-r]"),
+
+    // seats summary
+    seatsD: root.querySelector("[data-seats-d]"),
+    seatsR: root.querySelector("[data-seats-r]"),
+    simCanvas: root.querySelector("[data-sim-canvas]"),
+    flips:  root.querySelector("[data-manual-flips]"),
+
+    // map
+    mapHelp: root.querySelector("[data-map-help]"),
+    svgEl: root.querySelector("svg.mapSvg"),
+
+    // (legacy / optional)
+    bucketBody: root.querySelector("tbody.bucketBody"),
+
+    // odds over time (auto)
+    comboSvg: root.querySelector("[data-combo-svg]"),
+    oddsStatus: root.querySelector("[data-odds-status]"),
+  };
+
+  return UI[mode];
+}
+
+/* ---------- Seat meter (per mode) ---------- */
+function renderSeatTicks(ui, total, majorityLine){
+  if (!ui?.seatTicks || !ui?.seatMajorityLine) return;
+
+  let ticks = [];
+  if (total >= 400){
+    ticks = [0,100,200,300,400,total];
+  } else if (total >= 100){
+    ticks = [0,25,50,75,100];
+    if (total !== 100) ticks[ticks.length-1] = total;
+  } else if (total === 50){
+    ticks = [0,10,20,30,40,50];
+  } else {
+    const step = Math.max(1, Math.round(total/5));
+    ticks = [0, step, step*2, step*3, total];
+  }
+
+  ticks = Array.from(new Set(ticks)).sort((a,b)=>a-b);
+
+  ui.seatTicks.innerHTML = ticks.map(t=>{
+    const p = (t/total)*100;
+    return `
+      <div class="seatTickLine" style="left:${p}%"></div>
+      <div class="seatTickLabel" style="left:${p}%">${t}</div>
+    `;
+  }).join("");
+
+  ui.seatMajorityLine.style.left = `${(majorityLine/total)*100}%`;
+}
+
+function computeSeatTally(modeKey, cachedIndNat){
+  const rules = SEAT_RULES[modeKey];
+  const ratios = DATA[modeKey].ratios;
+
+  let up = 0, winsD = 0, winsR = 0, toss = 0;
+
+  for (const key of Object.keys(ratios)){
+    const model = (modeKey === "house")
+      ? getHouseModel(key)
+      : getStateModel(modeKey, key, cachedIndNat);
+    if (!model) continue;
+
+    up += 1;
+
+    const m = marginRD(model.combinedPair);
+    if (!isFinite(m)) continue;
+
+    if (Math.abs(m) < 1e-9){ winsD += 1; toss += 1; } 
+    else if (m < 0) winsD += 1;
+    else winsR += 1;
+  }
+
+  const totalD = rules.baseD + winsD;
+  const totalR = rules.baseR + winsR;
+  let other = rules.total - totalD - totalR;
+  if (other < 0 && other > -0.001) other = 0;
+
+  return { ...rules, up, winsD, winsR, toss, totalD, totalR, other };
+}
+
+
+function poissonBinomialDist(ps){
+  const n = ps.length;
+  const dist = new Array(n+1).fill(0);
+  dist[0] = 1;
+
+  for (const pRaw of ps){
+    const p = clamp(pRaw, 0, 1);
+    for (let k = n; k >= 1; k--){
+      dist[k] = dist[k] * (1 - p) + dist[k-1] * p;
+    }
+    dist[0] = dist[0] * (1 - p);
+  }
+  return dist;
+}
+
+
+function histogramFromSamples(samples){
+  // Discrete distribution: one bar per integer seat total (no bin ranges).
+  let min = Infinity, max = -Infinity;
+  for (let i=0;i<samples.length;i++){
+    const v = samples[i];
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (!isFinite(min) || !isFinite(max)){
+    min = 0; max = 0;
+  }
+  // Ensure integer bounds
+  min = Math.floor(min);
+  max = Math.floor(max);
+  if (max < min) max = min;
+
+  const n = (max - min + 1) || 1;
+  const counts = new Array(n).fill(0);
+
+  for (let i=0;i<samples.length;i++){
+    const v = Math.floor(samples[i]);
+    const idx = v - min;
+    if (idx >= 0 && idx < n) counts[idx] += 1;
+  }
+  return { counts, min, max, isProb:false };
+}
+
+
+function histogramFromSamplesRange(samples, showMin, showMax){
+  // Discrete distribution but only for a display window. Percentages remain relative to ALL sims.
+  showMin = Math.floor(showMin);
+  showMax = Math.floor(showMax);
+  if (showMax < showMin) showMax = showMin;
+
+  const counts = new Array(showMax - showMin + 1).fill(0);
+  const total = samples.length || 1;
+
+  for (let i=0;i<samples.length;i++){
+    const v = Math.floor(samples[i]);
+    if (v < showMin || v > showMax) continue;
+    counts[v - showMin] += 1;
+  }
+  return { counts, min: showMin, max: showMax, isProb:false, total, binSize:1 };
+}
+
+function histogramFromProbDistRange(dist, base, showMin, showMax){
+  // Poisson-binomial distribution, but only for a display window. Percentages remain absolute (sum may < 1).
+  showMin = Math.floor(showMin);
+  showMax = Math.floor(showMax);
+  if (showMax < showMin) showMax = showMin;
+
+  const baseI = Math.floor(base);
+  const counts = new Array(showMax - showMin + 1).fill(0);
+  for (let seats=showMin; seats<=showMax; seats++){
+    const k = seats - baseI;
+    if (k >= 0 && k < dist.length) counts[seats - showMin] = dist[k];
+  }
+  return { counts, min: showMin, max: showMax, isProb:true, total:1, binSize:1 };
+}
+
+function histogramFromSamplesBinned(samples, binSize, binOffset){
+  // Binned distribution. Each bar represents a seat RANGE of width binSize.
+  binSize = Math.max(1, Math.floor(binSize || 1));
+  binOffset = Math.floor(binOffset || 0);
+
+  let min = Infinity, max = -Infinity;
+  for (let i=0;i<samples.length;i++){
+    const v = Math.floor(samples[i]);
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  if (!isFinite(min) || !isFinite(max)){
+    min = 0; max = 0;
+  }
+
+  const toBinStart = (v)=> Math.floor((v - binOffset) / binSize) * binSize + binOffset;
+
+  const minB = toBinStart(min);
+  const maxB = toBinStart(max);
+  const n = Math.max(1, Math.floor((maxB - minB) / binSize) + 1);
+  const counts = new Array(n).fill(0);
+  const total = samples.length || 1;
+
+  for (let i=0;i<samples.length;i++){
+    const v = Math.floor(samples[i]);
+    const b = toBinStart(v);
+    const idx = Math.floor((b - minB) / binSize);
+    if (idx >= 0 && idx < n) counts[idx] += 1;
+  }
+
+  return { counts, min: minB, max: (minB + (n-1)*binSize + (binSize-1)), isProb:false, total, binSize, binOffset };
+}
+
+function histogramFromProbDist(dist, base){
+  // Discrete distribution from Poisson-binomial: one bar per integer seat total.
+  const min = Math.floor(base);
+  const max = Math.floor(base + dist.length - 1);
+  const counts = dist.slice(); // probabilities
+  return { counts, min, max, isProb:true };
+}
+
+
+function drawSeatSimMini(canvas, hist, controlThreshold){
+  if (!canvas || !hist || !hist.counts) return;
+
+  const cssW = canvas.clientWidth || 0;
+  const cssH = canvas.clientHeight || 0;
+  if (cssW <= 2 || cssH <= 2) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.floor(cssW * dpr);
+  const h = Math.floor(cssH * dpr);
+
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0,0,w,h);
+
+  const counts = hist.counts;
+  const n = counts.length || 1;
+  const maxCount = Math.max(...counts) || 1;
+
+  const padTop = Math.floor(2*dpr);
+  const padBot = Math.floor(3*dpr);
+  const availH = Math.max(1, h - padTop - padBot);
+
+  const barW = w / n;
+
+  const cs = getComputedStyle(document.documentElement);
+  const blue = cs.getPropertyValue("--blue").trim() || "#2563eb";
+  const red  = cs.getPropertyValue("--red").trim()  || "#dc2626";
+  const lineCol = "rgba(31,41,55,0.35)";
+  const neutral = "rgba(156,163,175,0.9)";
+
+  ctx.globalAlpha = 0.9;
+
+  for (let i=0;i<n;i++){
+    const frac = counts[i] / maxCount;
+    const bh = Math.max(1, Math.round(frac * availH));
+    const x = Math.floor(i * barW);
+    const y = h - padBot - bh;
+    const bw = Math.max(1, Math.ceil(barW - 1*dpr));
+
+    const bs = (hist.binSize && isFinite(hist.binSize)) ? hist.binSize : 1;
+    const seatVal = (hist.min ?? 0) + i*bs;
+
+    if (!isFinite(controlThreshold)){
+      ctx.fillStyle = neutral;
+    } else {
+      ctx.fillStyle = (seatVal >= controlThreshold) ? blue : red;
+    }
+    ctx.fillRect(x, y, bw, bh);
+  }
+
+  ctx.globalAlpha = 1;
+
+  // Control threshold line at the boundary before the threshold seat value
+  if (isFinite(controlThreshold)){
+    const min = hist.min ?? 0;
+    const bs = (hist.binSize && isFinite(hist.binSize)) ? hist.binSize : 1;
+    const boundary = (controlThreshold - min) / (bs * n); // left edge of threshold bar
+    const x = Math.round(clamp(boundary, 0, 1) * w);
+
+    ctx.strokeStyle = lineCol;
+    ctx.lineWidth = Math.max(1, Math.round(1*dpr));
+    ctx.beginPath();
+    ctx.moveTo(x, padTop);
+    ctx.lineTo(x, h - padBot);
+    ctx.stroke();
+  }
+}
+
+
+
+function houseControlProbsMC(){
+  const rules = SEAT_RULES.house;
+  const ratioKeys = Object.keys(DATA.house.ratios || {});
+  const upSeats = rules.total - rules.baseD - rules.baseR;
+
+  // Precompute baseline margins for all modeled districts
+  const margins = new Float32Array(upSeats);
+  let n = 0;
+  for (let i=0;i<ratioKeys.length && n<upSeats;i++){
+    const key = ratioKeys[i];
+    const model = getHouseModel(key);
+    if (!model) continue;
+    const mm = marginRD(model.combinedPair);
+    margins[n++] = isFinite(mm) ? mm : 0;
+  }
+  // Fill any missing seats as pure tossups
+  for (; n<upSeats; n++) margins[n] = 0;
+
+  const sims = HOUSE_MC_SIMS;
+  let demControl = 0;
+  const seatSamples = new Int16Array(sims);
+
+  for (let s=0; s<sims; s++){
+    const swing = (Math.random()*2 - 1) * HOUSE_MC_SWING_RANGE_PTS; // + favors R
+    let dSeats = rules.baseD;
+
+    for (let i=0;i<upSeats;i++){
+      const pD = winProbD_fast(margins[i] + swing);
+      if (Math.random() < pD) dSeats++;
+    }
+
+    seatSamples[s] = dSeats;
+    if (dSeats >= rules.majorityLine) demControl++;
+  }
+
+  const pD = demControl / sims;
+  const pR = 1 - pD;
+
+  const hist = histogramFromSamplesBinned(seatSamples, 12, 2);
+  return { pD: clamp(pD,0,1), pR: clamp(pR,0,1), hist };
+}
+
+
+function senateControlProbsMC(cachedIndNat){
+  const rules = SEAT_RULES.senate;
+  const ratioKeys = Object.keys(DATA.senate.ratios || {});
+  const upSeats = rules.total - rules.baseD - rules.baseR;
+
+  // Precompute baseline margins for all modeled states
+  const margins = new Float32Array(upSeats);
+  let n = 0;
+  for (let i=0;i<ratioKeys.length && n<upSeats;i++){
+    const st = ratioKeys[i];
+    const model = getStateModel("senate", st, cachedIndNat);
+    if (!model) continue;
+    const mm = marginRD(model.combinedPair);
+    margins[n++] = isFinite(mm) ? mm : 0;
+  }
+  // Fill any missing contests as pure tossups
+  for (; n<upSeats; n++) margins[n] = 0;
+
+  const sims = SENATE_MC_SIMS;
+  let demControl = 0;
+  const seatSamples = new Int16Array(sims);
+
+  for (let s=0; s<sims; s++){
+    const swing = (Math.random()*2 - 1) * SENATE_MC_SWING_RANGE_PTS; // + favors R
+    let dSeats = rules.baseD;
+
+    for (let i=0;i<upSeats;i++){
+      const pD = winProbD_fast(margins[i] + swing);
+      if (Math.random() < pD) dSeats++;
+    }
+
+    seatSamples[s] = dSeats;
+    // Rule: Dem control at 51+, otherwise GOP (incl. 50-50)
+    if (dSeats >= SENATE_CONTROL_RULE.demAtLeast) demControl++;
+  }
+
+  const pD = demControl / sims;
+  const pR = 1 - pD;
+
+  const hist = histogramFromSamplesRange(seatSamples, 44, 57);
+  return { pD: clamp(pD,0,1), pR: clamp(pR,0,1), hist };
+}
+
+function chamberControlProbs(modeKey, cachedIndNat){
+  if (modeKey === "house") return houseControlProbsMC();
+  if (modeKey === "senate") return senateControlProbsMC(cachedIndNat);
+
+  const rules = SEAT_RULES[modeKey];
+  const ratioKeys = Object.keys(DATA[modeKey].ratios || {});
+  const ps = [];
+
+  for (const key of ratioKeys){
+    const model = (modeKey === "house")
+      ? getHouseModel(key)
+      : getStateModel(modeKey, key, cachedIndNat);
+
+    if (!model) continue;
+    const mm = marginRD(model.combinedPair);
+    if (!isFinite(mm)) continue;
+
+    const wp = winProbFromMargin(mm);
+    ps.push(wp.pD);
+  }
+
+  const n = ps.length;
+  const baseD = rules.baseD;
+  const baseR = rules.baseR;
+
+  const demAtLeast = (modeKey === "senate") ? SENATE_CONTROL_RULE.demAtLeast : rules.majorityLine;
+  const repAtLeast = (modeKey === "senate") ? SENATE_CONTROL_RULE.repAtLeast : rules.majorityLine;
+
+  // Let X = number of Dem wins among the n contests.
+  const minXForDem = demAtLeast - baseD;
+  const maxXForRep = n + baseR - repAtLeast;
+
+  // Fast exit: if Dem already has control locked by base seats
+  if (minXForDem <= 0) return { pD: 1, pR: 0 };
+
+  // Compute P(D control) + P(R control), and split any leftover tie probability 50/50.
+  let pD = 0, pR = 0;
+  let dist = null;
+
+  if (n <= 120){
+    dist = poissonBinomialDist(ps); // exact Poisson-binomial
+    for (let k = 0; k < dist.length; k++){
+      if (k >= minXForDem) pD += dist[k];
+      if (k <= maxXForRep) pR += dist[k];
+    }
+  } else {
+    // Normal approximation for large n
+    const mu = ps.reduce((a,b)=>a+b,0);
+    const variance = ps.reduce((a,p)=>a + p*(1-p), 0);
+    const sigma = Math.sqrt(variance);
+
+    if (sigma < 1e-9){
+      pD = (mu >= minXForDem) ? 1 : 0;
+      pR = (mu <= maxXForRep) ? 1 : 0;
+    } else {
+      // continuity correction
+      const zD = ((minXForDem - 0.5) - mu) / sigma;
+      pD = 1 - normalCDF(zD);
+
+      const zR = ((maxXForRep + 0.5) - mu) / sigma;
+      pR = normalCDF(zR);
+    }
+  }
+
+  pD = clamp(pD, 0, 1);
+  pR = clamp(pR, 0, 1);
+
+  const tie = clamp(1 - pD - pR, 0, 1);
+  if (tie > 0){
+    // Ties count as Dem for the control line (e.g., 25-25 in gubernatorial).
+    pD += tie;
+  }
+
+  const hist = dist ? ((modeKey === "governor") ? histogramFromProbDistRange(dist, baseD, 21, 31) : histogramFromProbDist(dist, baseD)) : null;
+  return { pD: clamp(pD,0,1), pR: clamp(pR,0,1), hist };
+}
+
+function updateSeatMeterFor(modeKey){
+  const ui = UI[modeKey];
+  const rules = SEAT_RULES[modeKey];
+  if (!ui || !rules) return;
+
+  const tally = computeSeatTally(modeKey, IND_CACHE[modeKey]);
+
+  // Seats (integer display)
+  const d = Math.round(tally.totalD);
+  const r = Math.round(tally.totalR);
+
+  if (ui.seatsD) ui.seatsD.textContent = String(d);
+  if (ui.seatsR) ui.seatsR.textContent = String(r);
+
+  // Chamber control probabilities (shown in the pills)
+  const probs = chamberControlProbs(modeKey, IND_CACHE[modeKey]);
+  if (ui.pillD) ui.pillD.textContent = (probs.pD * 100).toFixed(1);
+  if (ui.pillR) ui.pillR.textContent = (probs.pR * 100).toFixed(1);
+
+  // Tiny seat simulation histogram under the seat totals
+  if (ui.simCanvas){
+    const thr = (modeKey === "senate") ? SENATE_CONTROL_RULE.demAtLeast : (modeKey === "governor") ? 25 : rules.majorityLine;
+    ui._lastHist = probs.hist || null;
+    ui._lastMaj = thr;
+
+    if (probs.hist){
+      drawSeatSimMini(ui.simCanvas, probs.hist, thr);
+
+      // Enable hover readout (frequency + seats)
+      const total = (probs.hist && typeof probs.hist.total === "number") ? probs.hist.total : ((probs.hist && probs.hist.isProb) ? 1 : ((probs.hist.counts || []).reduce((a,b)=>a+b,0) || 1));
+      ui.simCanvas._simMeta = { hist: probs.hist, threshold: thr, total };
+      ensureSimHover(ui.simCanvas);
+    } else {
+      ui.simCanvas._simMeta = null;
+      const ctx = ui.simCanvas.getContext("2d");
+      if (ctx) ctx.clearRect(0,0,ui.simCanvas.width, ui.simCanvas.height);
+    }
+  }
+}
+
+
+
+/* ---------- Map (per mode) ---------- */
+let STATE_GEO = null;
+let HOUSE_SVG_TEXT = null;
+
+async function loadStateGeo(){
+  if (STATE_GEO) return STATE_GEO;
+  const topo = await fetch("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json").then(r=>r.json());
+  const geo = topojson.feature(topo, topo.objects.states);
+  STATE_GEO = geo;
+  return STATE_GEO;
+}
+
+async function initMapForMode(modeKey){
+  const ui = UI[modeKey];
+  if (!ui?.svgEl) return;
+
+  if (modeKey === "house") return initHouseMapForMode(ui);
+  return initStateMapForMode(modeKey, ui);
+}
+
+async function initStateMapForMode(modeKey, ui){
+  const geo = await loadStateGeo();
+  const features = geo.features;
+
+  const width = 960, height = 600;
+  const svg = d3.select(ui.svgEl);
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+  const projection = d3.geoAlbersUsa();
+  projection.fitExtent([[18, 18], [width - 18, height - 18]], geo);
+  const pathGen = d3.geoPath(projection);
+
+  svg.selectAll("*").remove();
+  const gRoot = svg.append("g");
+
+  gRoot.selectAll("path")
+    .data(features)
+    .join("path")
+    .attr("class", d => {
+      const st = fipsToUsps(d.id);
+      const active = st && DATA[modeKey].ratios[st];
+      return active ? "state active" : "state";
+    })
+    .attr("data-st", d => fipsToUsps(d.id))
+    .attr("d", d => pathGen(d))
+    .attr("fill", "#e5e7eb")
+    .on("mouseenter", (event, d)=>{
+      const st = fipsToUsps(d.id);
+      if (!st) return;
+      if (!DATA[modeKey].ratios[st]) return;
+      d3.select(event.currentTarget).classed("hovered", true);
+      showTooltip(event, modeKey, st, IND_CACHE[modeKey]);
+    })
+    .on("mousemove", (event, d)=>{
+      const st = fipsToUsps(d.id);
+      if (!st) return;
+      if (!DATA[modeKey].ratios[st]) return;
+      positionTooltip(event);
+    })
+    .on("mouseleave", (event)=>{
+      d3.select(event.currentTarget).classed("hovered", false);
+      hideTooltip();
+    });
+
+  MAP[modeKey] = { kind:"states", svg, gRoot };
+}
+
+async function initHouseMapForMode(ui){
+  const width = 960, height = 600;
+  const svg = d3.select(ui.svgEl);
+
+  svg.selectAll("*").remove();
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
+  const gRoot = svg.append("g");
+
+  if (!HOUSE_SVG_TEXT){
+    HOUSE_SVG_TEXT = await fetch("house.svg", {cache:"no-store"}).then(r=>{
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.text();
+    });
+  }
+
+  const doc = new DOMParser().parseFromString(HOUSE_SVG_TEXT, "image/svg+xml");
+  const shapes = doc.getElementById("district-shapes");
+  if (!shapes) throw new Error("house.svg missing #district-shapes");
+
+  const imported = document.importNode(shapes, true);
+  gRoot.node().appendChild(imported);
+
+  // Fit imported House SVG group to our viewBox (centers / fixes right-shift)
+  requestAnimationFrame(() => {
+    try {
+      const bbox = imported.getBBox();
+      const pad = 18;
+      const scale = Math.min((width - pad*2) / bbox.width, (height - pad*2) / bbox.height);
+      const tx = (width - bbox.width * scale) / 2 - bbox.x * scale;
+      const ty = (height - bbox.height * scale) / 2 - bbox.y * scale;
+      gRoot.attr("transform", `translate(${tx},${ty}) scale(${scale})`);
+    } catch (e) { /* ignore */ }
+  });
+
+  // Tag district geometry for selection/styling
+  gRoot.selectAll("#district-shapes *").each(function(){
+    const rawId = String(this.id || "").trim();
+    if (!rawId) return;
+
+    let did = rawId;
+    if (!DATA.house.ratios[did]){
+      const digits = rawId.replace(/\D/g, "");
+      if (digits) did = digits.padStart(4,"0").slice(-4);
+    }
+    if (!DATA.house.ratios[did]) return;
+
+    this.classList.add("district","active");
+    this.setAttribute("data-did", did);
+
+    try{ this.style.fill = ""; }catch(e){}
+  });
+
+  // Hover tooltips
+  gRoot.selectAll(".district.active")
+    .on("mouseenter", (event)=>{
+      let did = event.currentTarget.getAttribute("data-did") || event.currentTarget.id || "";
+      if (did && !DATA.house.ratios[did]){
+        const digits = String(did).replace(/\D/g, "");
+        if (digits) did = digits.padStart(4,"0").slice(-4);
+      }
+      if (!did) return;
+      if (!DATA.house.ratios[did]) return;
+
+      d3.select(event.currentTarget).classed("hovered", true);
+      showTooltip(event, "house", did, null);
+    })
+    .on("mousemove", (event)=>{
+      let did = event.currentTarget.getAttribute("data-did") || event.currentTarget.id || "";
+      if (did && !DATA.house.ratios[did]){
+        const digits = String(did).replace(/\D/g, "");
+        if (digits) did = digits.padStart(4,"0").slice(-4);
+      }
+      if (!did) return;
+      if (!DATA.house.ratios[did]) return;
+      positionTooltip(event);
+    })
+    .on("mouseleave", (event)=>{
+      d3.select(event.currentTarget).classed("hovered", false);
+      hideTooltip();
+    });
+
+  MAP.house = { kind:"house", svg, gRoot };
+}
+
+function recolorMapForMode(modeKey){
+  const m = MAP[modeKey];
+  if (!m?.gRoot) return;
+
+  if (m.kind === "house"){
+    m.gRoot.selectAll(".district").each(function(){
+      const did = this.getAttribute("data-did");
+      const ratio = DATA.house.ratios[did];
+
+      if (!ratio){
+        this.removeAttribute("display");
+        this.style.fill = "#e5e7eb";
+        this.classList.remove("filtered");
+        return;
+      }
+
+      const model = getHouseModel(did);
+      if (!model){
+        this.removeAttribute("display");
+        this.style.fill = "#e5e7eb";
+        this.classList.add("filtered");
+        return;
+      }
+
+      const mm = marginRD(model.combinedPair);
+      this.removeAttribute("display");
+      this.classList.remove("filtered");
+      this.style.fill = interpColor(mm);
+    });
+    return;
+  }
+
+  m.gRoot.selectAll("path.state").each(function(){
+    const st = this.getAttribute("data-st");
+    const ratio = DATA[modeKey].ratios[st];
+
+    if (!ratio){
+      this.removeAttribute("display");
+      this.style.fill = "#e5e7eb";
+      this.setAttribute("fill", "#e5e7eb");
+      this.classList.remove("active","filtered");
+      return;
+    }
+
+    this.classList.add("active");
+
+    const model = getStateModel(modeKey, st, IND_CACHE[modeKey]);
+    if (!model){
+      this.removeAttribute("display");
+      this.style.fill = "#e5e7eb";
+      this.setAttribute("fill", "#e5e7eb");
+      this.classList.add("filtered");
+      return;
+    }
+
+    const mm = marginRD(model.combinedPair);
+    this.removeAttribute("display");
+    this.classList.remove("filtered");
+    this.style.fill = interpColor(mm);
+  });
+}
+
+/* ---------- Bucket table (per mode) ---------- */
+const BUCKET_ORDER = ["Likely D","Lean D","Tossup","Lean R","Likely R"];
+
+function renderBucketTableForMode(modeKey){
+  const ui = UI[modeKey];
+  const gRoot = MAP[modeKey]?.gRoot;
+  if (!ui?.bucketBody) return;
+
+  const ratios = DATA[modeKey].ratios || {};
+  const buckets = {};
+  for (const k of BUCKET_ORDER) buckets[k] = [];
+
+  for (const key of Object.keys(ratios)){
+    const model = (modeKey === "house")
+      ? getHouseModel(key)
+      : getStateModel(modeKey, key, IND_CACHE[modeKey]);
+    if (!model) continue;
+
+    const mm = marginRD(model.combinedPair);
+    const bKey = bucketKeyFromMargin(mm);
+    if (!bKey) continue;
+
+    const absM = Math.abs(mm);
+
+    let label = key;
+    let name = key;
+
+    if (modeKey === "house"){
+      const meta = DATA.house.meta[key] || {};
+      label = meta.code || key;
+      name = meta.name || label;
+    } else {
+      label = key;
+      name = USPS_TO_NAME[key] || key;
+    }
+
+    let cls = "t";
+    if (bKey === "Likely D" || bKey === "Lean D") cls = "d";
+    if (bKey === "Lean R"   || bKey === "Likely R") cls = "r";
+
+    buckets[bKey].push({ key, label, name, m: mm, absM, cls });
+  }
+
+  for (const k of BUCKET_ORDER){
+    buckets[k].sort((a,b)=>a.absM - b.absM);
+  }
+
+  const maxLen = Math.max(...BUCKET_ORDER.map(k => buckets[k].length), 0);
+
+  if (maxLen === 0){
+    ui.bucketBody.innerHTML = `<tr><td colspan="5"><div class="raceEmpty" style="height:72px;justify-content:center;">No competitive races</div></td></tr>`;
+    return;
+  }
+
+  ui.bucketBody.innerHTML = "";
+  for (let i=0; i<maxLen; i++){
+    const tr = document.createElement("tr");
+
+    for (const k of BUCKET_ORDER){
+      const td = document.createElement("td");
+      const item = buckets[k][i];
+
+      if (!item){
+        const ph = document.createElement("div");
+        ph.className = "raceEmpty";
+        ph.innerHTML = "—";
+        td.appendChild(ph);
+      } else {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `raceItem ${item.cls}`;
+        btn.setAttribute("data-key", item.key);
+        btn.title = item.name;
+
+        const top = document.createElement("div");
+        top.className = "raceTop";
+        top.textContent = item.label;
+
+        const mid = document.createElement("div");
+        mid.className = "raceName";
+        mid.textContent = item.name;
+
+        const bot = document.createElement("div");
+        bot.className = "raceBottom";
+        bot.textContent = fmtLead(item.m);
+
+        btn.appendChild(top);
+        btn.appendChild(mid);
+        btn.appendChild(bot);
+
+        const allSel = (modeKey === "house") ? ".district" : "path.state";
+        const oneSel = (modeKey === "house")
+          ? `.district[data-did='${item.key}']`
+          : `path.state[data-st='${item.key}']`;
+
+        btn.addEventListener("mouseenter", ()=>{
+          const evt = pseudoEvtFromEl(btn);
+          showTooltip(evt, modeKey, item.key, IND_CACHE[modeKey]);
+          gRoot?.selectAll(allSel).classed("focus", false);
+          gRoot?.selectAll(oneSel).classed("focus", true);
+        });
+        btn.addEventListener("mouseleave", ()=>{
+          hideTooltip();
+          gRoot?.selectAll(allSel).classed("focus", false);
+        });
+        btn.addEventListener("click", ()=>{
+          const evt = pseudoEvtFromEl(btn);
+          showTooltip(evt, modeKey, item.key, IND_CACHE[modeKey]);
+        });
+
+        td.appendChild(btn);
+      }
+
+      tr.appendChild(td);
+    }
+
+    ui.bucketBody.appendChild(tr);
+  }
+}
+
+
+/* ---------- House odds over time (daily 10k sims from GB series) ---------- */
+const ODDS_RANGE = { house:"all", senate:"all", governor:"all" };
+let HOUSE_ODDS_WORKER = null;
+let STATE_ODDS_WORKER = null;
+const STATE_ODDS_PENDING = Object.create(null);
+const STATE_ODDS_RUNSEQ = { senate:0, governor:0 };
+
+function houseRatioArraysSorted(){
+  const keys = Object.keys(DATA.house.ratios || {}).slice().sort();
+  const d = new Float32Array(keys.length);
+  const r = new Float32Array(keys.length);
+  for (let i=0;i<keys.length;i++){
+    const rr = DATA.house.ratios[keys[i]];
+    d[i] = (rr && isFinite(rr.D)) ? rr.D : 1;
+    r[i] = (rr && isFinite(rr.R)) ? rr.R : 1;
+  }
+  return { keys, d, r };
+}
+
+function stateArraysSorted(modeKey){
+  const keys = Object.keys(DATA[modeKey]?.ratios || {}).slice().sort();
+  const n = keys.length;
+  const ratioD = new Float32Array(n);
+  const ratioR = new Float32Array(n);
+  const pollD  = new Float32Array(n);
+  const pollR  = new Float32Array(n);
+  const pollS  = new Float32Array(n);
+  for (let i=0;i<n;i++){
+    const k = keys[i];
+    const rr = DATA[modeKey].ratios[k];
+    ratioD[i] = (rr && isFinite(rr.D)) ? rr.D : 1;
+    ratioR[i] = (rr && isFinite(rr.R)) ? rr.R : 1;
+
+    const pp = DATA[modeKey]?.polls ? DATA[modeKey].polls[k] : null;
+    pollD[i] = (pp && isFinite(pp.D)) ? pp.D : NaN;
+    pollR[i] = (pp && isFinite(pp.R)) ? pp.R : NaN;
+    pollS[i] = (pp && isFinite(pp.S)) ? pp.S : 3;
+  }
+  return { keys, ratioD, ratioR, pollD, pollR, pollS };
+}
+
+function setOddsStatus(modeKey, msg){
+  const ui = UI[modeKey];
+  if (ui?.oddsStatus) ui.oddsStatus.textContent = msg || "";
+}
+function setHouseOddsStatus(msg){ setOddsStatus("house", msg); }
+
+function ensureHouseOddsWorker(){
+  if (HOUSE_ODDS_WORKER) return HOUSE_ODDS_WORKER;
+
+  const code = `
+  // Worker: compute daily House Dem-control probability using 10k simulations/day.
+  const WINP_MIN = -40, WINP_MAX = 40, WINP_STEP = 0.1;
+  const WINP_N = Math.round((WINP_MAX - WINP_MIN) / WINP_STEP) + 1;
+  const PROB_ERROR_SD_PTS = 7;
+
+  function clamp(x, a, b){ return x < a ? a : (x > b ? b : x); }
+
+  // fast erf approximation (Abramowitz-Stegun 7.1.26)
+  function erf(x){
+    const sign = x < 0 ? -1 : 1;
+    x = Math.abs(x);
+    const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429;
+    const t = 1/(1+0.3275911*x);
+    const y = 1 - (((((a5*t + a4)*t + a3)*t + a2)*t + a1)*t)*Math.exp(-x*x);
+    return sign*y;
+  }
+  function normalCDF(x){ return 0.5*(1 + erf(x/Math.SQRT2)); }
+  function winProbFromMargin(m){
+    const z = m / PROB_ERROR_SD_PTS;
+    const pR = clamp(normalCDF(z), 0, 1);
+    return 1 - pR; // pD
+  }
+
+  const WINP_PD_TABLE = new Float32Array(WINP_N);
+  for (let i=0;i<WINP_N;i++){
+    const m = WINP_MIN + i*WINP_STEP;
+    WINP_PD_TABLE[i] = winProbFromMargin(m);
+  }
+  function winProbD_fast(m){
+    if (!isFinite(m)) return 0.5;
+    const mm = clamp(m, WINP_MIN, WINP_MAX);
+    const idx = Math.round((mm - WINP_MIN) / WINP_STEP);
+    return WINP_PD_TABLE[idx] ?? 0.5;
+  }
+
+  function randn(){
+    // Box-Muller
+    let u=0, v=0;
+    while (u===0) u = Math.random();
+    while (v===0) v = Math.random();
+    return Math.sqrt(-2.0*Math.log(u)) * Math.cos(2.0*Math.PI*v);
+  }
+
+  self.onmessage = (e) => {
+    const msg = e.data || {};
+    if (msg.type !== "run") return;
+
+    const dates = msg.dates || [];
+    const gbD = msg.gbD || [];
+    const gbR = msg.gbR || [];
+    const ratioD = msg.ratioD || [];
+    const ratioR = msg.ratioR || [];
+    const seatTotal = msg.seatTotal || ratioD.length;
+    const majorityLine = msg.majorityLine || Math.floor(seatTotal/2)+1;
+    const sims = msg.sims || 10000;
+    const swingRange = msg.swingRange || 7;
+    const swingStep = msg.swingStep || 0.1;
+
+    // discrete swing grid (uniformly sampled)
+    const swings = [];
+    for (let s=-swingRange; s<=swingRange+1e-9; s+=swingStep) swings.push(s);
+    const nSw = swings.length;
+
+    const margins = new Float32Array(seatTotal);
+    const results = new Array(dates.length);
+
+    for (let day=0; day<dates.length; day++){
+      const d0 = +gbD[day];
+      const r0 = +gbR[day];
+
+      // compute per-seat baseline margin (R-D)
+      for (let k=0;k<seatTotal;k++){
+        let m = 0;
+        if (k < ratioD.length){
+          const a = +ratioD[k];
+          const b = +ratioR[k];
+          const den = d0*a + r0*b;
+          if (den > 0){
+            m = 100 * (r0*b - d0*a) / den;
+          } else {
+            m = 0;
+          }
+        } else {
+          m = 0; // missing seats: pure tossup
+        }
+        margins[k] = m;
+      }
+
+      // conditional mean/var for each swing bucket
+      const muBy = new Float32Array(nSw);
+      const vaBy = new Float32Array(nSw);
+
+      for (let j=0;j<nSw;j++){
+        const sw = swings[j];
+        let mu = 0, va = 0;
+        for (let k=0;k<seatTotal;k++){
+          const p = winProbD_fast(margins[k] + sw);
+          mu += p;
+          va += p*(1-p);
+        }
+        muBy[j] = mu;
+        vaBy[j] = va;
+      }
+
+      let demWins = 0;
+      let seatSum = 0;
+
+      for (let s=0;s<sims;s++){
+        const j = (Math.random()*nSw) | 0;
+        const mu = muBy[j];
+        const va = vaBy[j];
+
+        let seats = mu;
+        if (va > 1e-9){
+          seats = mu + Math.sqrt(va) * randn();
+        }
+        seats = Math.round(seats);
+        if (seats < 0) seats = 0;
+        if (seats > seatTotal) seats = seatTotal;
+
+        seatSum += seats;
+        if (seats >= majorityLine) demWins++;
+      }
+
+      results[day] = { date: dates[day], pDem: demWins / sims, expDem: seatSum / sims };
+
+      if (day % 7 === 0){
+        self.postMessage({ type:"progress", day, total: dates.length });
+      }
+    }
+
+    self.postMessage({ type:"done", results });
+  };
+  `;
+
+  const blob = new Blob([code], {type:"application/javascript"});
+  const url = URL.createObjectURL(blob);
+  HOUSE_ODDS_WORKER = new Worker(url);
+  return HOUSE_ODDS_WORKER;
+}
+
+function ensureStateOddsWorker(){
+  if (STATE_ODDS_WORKER) return STATE_ODDS_WORKER;
+
+  const code = `
+  // Worker: compute daily Dem-control probability + E[D seats] for Senate/Governor using 10k sims/day.
+  const WINP_MIN = -40, WINP_MAX = 40, WINP_STEP = 0.1;
+  const WINP_N = Math.round((WINP_MAX - WINP_MIN) / WINP_STEP) + 1;
+
+  function clamp(x,a,b){ return x<a?a:(x>b?b:x); }
+
+  // Approx normal CDF via erf approximation (Abramowitz & Stegun 7.1.26-ish)
+  function erfApprox(x){
+    const s = x < 0 ? -1 : 1;
+    x = Math.abs(x);
+    const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429;
+    const p=0.3275911;
+    const t = 1/(1+p*x);
+    const y = 1 - (((((a5*t + a4)*t + a3)*t + a2)*t + a1)*t)*Math.exp(-x*x);
+    return s*y;
+  }
+  function normCdf(z){ return 0.5*(1 + erfApprox(z/Math.SQRT2)); }
+
+  const PROB_ERROR_SD_PTS = 7;
+
+  // Precompute win prob table for speed
+  const WINP = new Float32Array(WINP_N);
+  for (let i=0;i<WINP_N;i++){
+    const m = WINP_MIN + i*WINP_STEP;
+    // pDem = Phi( -margin / sd )
+    WINP[i] = normCdf((-m)/PROB_ERROR_SD_PTS);
+  }
+  function winProbD_fast(margin){
+    const cl = clamp(margin, WINP_MIN, WINP_MAX);
+    const idx = Math.round((cl - WINP_MIN)/WINP_STEP);
+    return WINP[idx];
+  }
+
+  function normalizePair(D,R){
+    const s = D + R;
+    if (!isFinite(s) || s <= 0) return {D:50, R:50};
+    return {D: (D*100)/s, R: (R*100)/s};
+  }
+
+  function isFin(x){ return Number.isFinite(x); }
+
+  // weighted combine of already-normalized component pairs
+  function weightedCombine(gbPair, pollPair, indPair, wGb, wPoll, wInd){
+    let d=0, r=0, w=0;
+    if (gbPair && wGb>0){ d += wGb*gbPair.D; r += wGb*gbPair.R; w += wGb; }
+    if (pollPair && wPoll>0){ d += wPoll*pollPair.D; r += wPoll*pollPair.R; w += wPoll; }
+    if (indPair && wInd>0){ d += wInd*indPair.D; r += wInd*indPair.R; w += wInd; }
+    if (w <= 0) return {D:50,R:50};
+    return normalizePair(d/w, r/w);
+  }
+
+  self.onmessage = (ev)=>{
+    const msg = ev.data || {};
+    if (msg.type !== "run") return;
+
+    const modeKey = msg.modeKey || "state";
+    const runId = msg.runId || 0;
+    const dates = msg.dates || [];
+    const gbD = msg.gbD || [];
+    const gbR = msg.gbR || [];
+
+    const ratioD = msg.ratioD || [];
+    const ratioR = msg.ratioR || [];
+    const pollD0 = msg.pollD0 || [];
+    const pollR0 = msg.pollR0 || [];
+    const pollDDay = msg.pollDDay || null;
+    const pollRDay = msg.pollRDay || null;
+
+    const indD = msg.indD;
+    const indR = msg.indR;
+
+    const wGb   = msg.wGb ?? 1;
+    const wPoll = msg.wPoll ?? 0;
+    const wInd  = msg.wInd ?? 0;
+
+    const baseD = msg.baseD ?? 0;
+    const baseR = msg.baseR ?? 0;
+    const total = msg.total ?? (baseD + baseR + (ratioD.length||0));
+    const controlLine = msg.controlLine ?? Math.floor(total/2)+1;
+
+    const tieIsDem = !!msg.tieIsDem;
+    const tieSeat = msg.tieSeat ?? (controlLine - 1);
+
+    const sims = msg.sims ?? 10000;
+    const swingRange = msg.swingRange ?? 7;
+
+    const n = Math.min(ratioD.length||0, ratioR.length||0);
+    const upSeats = n;
+
+    const margins = new Float32Array(upSeats);
+    const results = new Array(dates.length);
+
+    for (let day=0; day<dates.length; day++){
+      const gbd = +gbD[day], gbr = +gbR[day];
+
+      // compute per-seat base margins
+      for (let i=0;i<upSeats;i++){
+        const rd = ratioD[i], rr = ratioR[i];
+        const gbPair = normalizePair(gbd*rd, gbr*rr);
+
+        let pollPair = null;
+        // Prefer per-day rolling state polls (last-N as of the day). If missing for a seat/day, fall back to static pollD0/pollR0 (from entries_all.csv).
+        let pDi = NaN, pRi = NaN;
+        if (pollDDay && pollRDay){
+          const pd = pollDDay[day*upSeats + i];
+          const pr = pollRDay[day*upSeats + i];
+          if (isFin(pd) && isFin(pr)) { pDi = pd; pRi = pr; }
+        }
+        if (!isFin(pDi) || !isFin(pRi)){
+          pDi = pollD0[i]; pRi = pollR0[i];
+        }
+        if (isFin(pDi) && isFin(pRi)){
+          pollPair = normalizePair(pDi, pRi);
+        }
+
+        let indPair = null;
+        if (isFin(indD) && isFin(indR)){
+          indPair = normalizePair(indD*rd, indR*rr);
+        }
+
+        const comb = weightedCombine(gbPair, pollPair, indPair, wGb, wPoll, wInd);
+        margins[i] = comb.R - comb.D;
+      }
+
+      // MC sims
+      let demControl = 0;
+      let sumDSeats = 0;
+
+      for (let s=0; s<sims; s++){
+        const swing = (Math.random()*2 - 1) * swingRange;
+        let dWins = 0;
+
+        for (let i=0;i<upSeats;i++){
+          const pD = winProbD_fast(margins[i] + swing);
+          if (Math.random() < pD) dWins++;
+        }
+
+        const dSeats = baseD + dWins;
+        sumDSeats += dSeats;
+
+        const isDemCtrl = (dSeats >= controlLine) || (tieIsDem && dSeats === tieSeat);
+        if (isDemCtrl) demControl++;
+      }
+
+      const pDem = demControl / sims;
+      const expDem = sumDSeats / sims;
+
+      results[day] = { date: dates[day], pDem, expDem };
+
+      if ((day % 10) === 0){
+        self.postMessage({ type:"progress", modeKey, runId, day, totalDays: dates.length });
+      }
+    }
+
+    self.postMessage({ type:"done", modeKey, runId, results });
+  };
+  `;
+
+  const blob = new Blob([code], {type:"application/javascript"});
+  STATE_ODDS_WORKER = new Worker(URL.createObjectURL(blob));
+
+  // Single dispatcher; per-run routing is via STATE_ODDS_PENDING[modeKey] + runId.
+  STATE_ODDS_WORKER.onmessage = (ev)=>{
+    const msg = ev.data || {};
+    const modeKey = msg.modeKey;
+    if (!modeKey) return;
+
+    const pend = STATE_ODDS_PENDING[modeKey];
+    if (!pend || msg.runId !== pend.runId) return;
+
+    if (msg.type === "progress"){
+      setOddsStatus(modeKey, `Running… ${msg.day+1}/${msg.totalDays}`);
+      return;
+    }
+
+    if (msg.type === "done"){
+      const out = msg.results || [];
+      renderComboChart(modeKey, out);
+      setOddsStatus(modeKey, `Done • ${out.length} points • GB window: last ${GB_SRC.windowPolls} polls • ${GB_SRC.filterStrict ? "Strict Allowlist" : "All Sources"} • End: ${GB_SRC.latest?.date || "—"}`);
+      if (pend.resolve) pend.resolve();
+      delete STATE_ODDS_PENDING[modeKey];
+      return;
+    }
+  };
+
+  return STATE_ODDS_WORKER;
+}
+
+
+function renderComboChart(modeKey, data){
+  const ui = UI[modeKey];
+  const svgEl = ui?.comboSvg;
+  if (!svgEl) return;
+
+  ui._lastOdds = data;
+
+  const rect = svgEl.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width || 900));
+  const height = Math.max(200, Math.floor(rect.height || 220));
+
+  // Clear
+  const svg = d3.select(svgEl);
+  svg.selectAll("*").remove();
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+  const m = {l:48, r:48, t:10, b:26};
+  const iw = width - m.l - m.r;
+  const ih = height - m.t - m.b;
+
+  const parsed = (data||[]).map(d=>({
+    date: parseDate(d.date),
+    pDem: +d.pDem,
+    expDem: +d.expDem
+  })).filter(d=>d.date && isFinite(d.pDem) && isFinite(d.expDem));
+
+  if (!parsed.length){
+    setOddsStatus(modeKey, "No series available.");
+    return;
+  }
+
+  const rules = SEAT_RULES[modeKey];
+  const seatTotal = rules?.total ?? 0;
+  const maj = (modeKey === "senate") ? SENATE_CONTROL_RULE.demAtLeast : (rules?.majorityLine ?? Math.floor(seatTotal/2)+1);
+
+  const x = d3.scaleTime()
+    .domain(d3.extent(parsed, d=>d.date))
+    .range([m.l, m.l+iw]);
+
+  // left axis: probability
+  const ext = d3.extent(parsed, d=>d.expDem);
+  const pad = 3;
+  const yMin = clamp((ext[0] ?? 0) - pad, 0, seatTotal || 1000);
+  const yMax = clamp((ext[1] ?? (seatTotal||0)) + pad, 0, seatTotal || 1000);
+  const ySeats = d3.scaleLinear()
+    .domain([yMin, yMax])
+    .range([m.t+ih, m.t])
+    .nice();
+
+  // right axis: seats
+  const yProb = d3.scaleLinear()
+    .domain([0,1])
+    .range([m.t+ih, m.t])
+    .nice();
+
+  const xAxis = d3.axisBottom(x).ticks(Math.min(6, Math.floor(iw/110))).tickFormat(d3.timeFormat("%b %d"));
+  const ySeatsAxis = d3.axisLeft(ySeats).ticks(5).tickFormat(d=>`${Math.round(d)}`);
+  const yProbAxis = d3.axisRight(yProb).ticks(4).tickFormat(d=>`${Math.round(d*100)}%`);
+
+  svg.append("g").attr("class","oddsAxis").attr("transform",`translate(0,${m.t+ih})`).call(xAxis);
+  svg.append("g").attr("class","oddsAxis").attr("transform",`translate(${m.l},0)`).call(yProbAxis);
+  svg.append("g").attr("class","oddsAxis").attr("transform",`translate(${m.l+iw},0)`).call(ySeatsAxis);
+
+  // Majority line (seats)
+  if (isFinite(maj) && maj >= ySeats.domain()[0] && maj <= ySeats.domain()[1]){
+    svg.append("line")
+      .attr("class","seatMajLine")
+      .attr("x1", m.l)
+      .attr("x2", m.l+iw)
+      .attr("y1", ySeats(maj))
+      .attr("y2", ySeats(maj));
+
+    svg.append("text")
+      .attr("class","seatMajLabel")
+      .attr("x", m.l+iw-2)
+      .attr("y", ySeats(maj)-6)
+      .attr("text-anchor","end")
+      .text(`Maj ${maj}`);
+  }
+
+  const seatsLine = d3.line()
+    .x(d=>x(d.date))
+    .y(d=>ySeats(d.expDem))
+    .curve(d3.curveMonotoneX);
+
+  const probLine = d3.line()
+    .x(d=>x(d.date))
+    .y(d=>yProb(d.pDem))
+    .curve(d3.curveMonotoneX);
+
+  svg.append("path")
+    .datum(parsed)
+    .attr("class","seatsLine")
+    .attr("d", seatsLine);
+
+  svg.append("path")
+    .datum(parsed)
+    .attr("class","oddsLine")
+    .attr("d", probLine);
+
+  const dotSeats = svg.append("circle")
+    .attr("class","seatsDot")
+    .attr("r", 4)
+    .style("opacity", 0);
+
+  const dotProb = svg.append("circle")
+    .attr("class","oddsDot")
+    .attr("r", 4)
+    .style("opacity", 0);
+
+  const bisect = d3.bisector(d=>d.date).left;
+
+  svg.append("rect")
+    .attr("x", m.l)
+    .attr("y", m.t)
+    .attr("width", iw)
+    .attr("height", ih)
+    .style("fill","transparent")
+    .style("cursor","crosshair")
+    .on("mousemove", (ev)=>{
+      const [mx] = d3.pointer(ev);
+      const xd = x.invert(mx);
+      const i = clamp(bisect(parsed, xd), 1, parsed.length-1);
+      const a = parsed[i-1], b = parsed[i];
+      const d = (xd - a.date) > (b.date - xd) ? b : a;
+
+      dotSeats
+        .attr("cx", x(d.date))
+        .attr("cy", ySeats(d.expDem))
+        .style("opacity", 1);
+
+      dotProb
+        .attr("cx", x(d.date))
+        .attr("cy", yProb(d.pDem))
+        .style("opacity", 1);
+
+      showSimTip(ev,
+        `<div><span class="k">${ds(d.date)}</span></div>` +
+        `<div><span class="k">D control:</span> ${(d.pDem*100).toFixed(1)}%</div>` +
+        `<div><span class="k">Expected D seats:</span> ${d.expDem.toFixed(1)}</div>`
+      );
+    })
+    .on("mouseleave", ()=>{
+      dotSeats.style("opacity", 0);
+      dotProb.style("opacity", 0);
+      hideSimTip();
+    });
+}
+
+function renderOddsChart(modeKey, data){
+  const ui = UI[modeKey];
+  const svgEl = ui?.oddsSvg;
+  if (!svgEl) return;
+
+  ui._lastOdds = data;
+
+  const rect = svgEl.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width || 800));
+  const height = Math.max(170, Math.floor(rect.height || 190));
+
+  // Clear
+  const svg = d3.select(svgEl);
+  svg.selectAll("*").remove();
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+  const m = {l:46, r:12, t:10, b:26};
+  const iw = width - m.l - m.r;
+  const ih = height - m.t - m.b;
+
+  const parsed = (data||[]).map(d=>({
+    date: parseDate(d.date),
+    pDem: +d.pDem,
+    expDem: +d.expDem
+  })).filter(d=>d.date && isFinite(d.pDem));
+
+  if (!parsed.length){
+    setOddsStatus(modeKey, "No GB series available.");
+    return;
+  }
+
+  const x = d3.scaleTime()
+    .domain(d3.extent(parsed, d=>d.date))
+    .range([m.l, m.l+iw]);
+
+  const y = d3.scaleLinear()
+    .domain([0,1])
+    .range([m.t+ih, m.t])
+    .nice();
+
+  const xAxis = d3.axisBottom(x).ticks(Math.min(6, Math.floor(iw/110))).tickFormat(d3.timeFormat("%b %d"));
+  const yAxis = d3.axisLeft(y).ticks(4).tickFormat(d=>`${Math.round(d*100)}%`);
+
+  svg.append("g").attr("class","oddsAxis").attr("transform",`translate(0,${m.t+ih})`).call(xAxis);
+  svg.append("g").attr("class","oddsAxis").attr("transform",`translate(${m.l},0)`).call(yAxis);
+
+  const line = d3.line()
+    .x(d=>x(d.date))
+    .y(d=>y(d.pDem))
+    .curve(d3.curveMonotoneX);
+
+  svg.append("path")
+    .datum(parsed)
+    .attr("class","oddsLine")
+    .attr("d", line);
+
+  const dot = svg.append("circle")
+    .attr("class","oddsDot")
+    .attr("r", 4)
+    .style("opacity", 0);
+
+  const bisect = d3.bisector(d=>d.date).left;
+
+  svg.append("rect")
+    .attr("x", m.l)
+    .attr("y", m.t)
+    .attr("width", iw)
+    .attr("height", ih)
+    .style("fill","transparent")
+    .style("cursor","crosshair")
+    .on("mousemove", (ev)=>{
+      const [mx] = d3.pointer(ev);
+      const xd = x.invert(mx);
+      const i = clamp(bisect(parsed, xd), 1, parsed.length-1);
+      const a = parsed[i-1], b = parsed[i];
+      const d = (xd - a.date) > (b.date - xd) ? b : a;
+
+      dot
+        .attr("cx", x(d.date))
+        .attr("cy", y(d.pDem))
+        .style("opacity", 1);
+
+      const pct = (d.pDem*100).toFixed(1);
+      const seats = isFinite(d.expDem) ? d.expDem.toFixed(1) : "—";
+
+      showSimTip(ev,
+        `<div><span class="k">${ds(d.date)}</span></div>` +
+        `<div><span class="k">P(D control):</span> ${pct}%</div>` +
+        `<div><span class="k">E[D seats]:</span> ${seats}</div>`
+      );
+    })
+    .on("mouseleave", ()=>{
+      dot.style("opacity", 0);
+      hideSimTip();
+    });
+}
+
+
+function renderSeatAvgChart(modeKey, data){
+  const ui = UI[modeKey];
+  const svgEl = ui?.seatsSvg;
+  if (!svgEl) return;
+
+  const rect = svgEl.getBoundingClientRect();
+  const width = Math.max(320, Math.floor(rect.width || 800));
+  const height = Math.max(170, Math.floor(rect.height || 190));
+
+  // Clear
+  const svg = d3.select(svgEl);
+  svg.selectAll("*").remove();
+  svg.attr("viewBox", `0 0 ${width} ${height}`);
+
+  const m = {l:46, r:12, t:10, b:26};
+  const iw = width - m.l - m.r;
+  const ih = height - m.t - m.b;
+
+  const parsed = (data||[]).map(d=>({
+    date: parseDate(d.date),
+    pDem: +d.pDem,
+    expDem: +d.expDem
+  })).filter(d=>d.date && isFinite(d.expDem));
+
+  if (!parsed.length) return;
+
+  const rules = SEAT_RULES[modeKey];
+  const seatTotal = rules?.total ?? 0;
+  const maj = (modeKey === "senate") ? SENATE_CONTROL_RULE.demAtLeast : (rules?.majorityLine ?? Math.floor(seatTotal/2)+1);
+
+  const x = d3.scaleTime()
+    .domain(d3.extent(parsed, d=>d.date))
+    .range([m.l, m.l+iw]);
+
+  const ext = d3.extent(parsed, d=>d.expDem);
+  const pad = 3;
+  const yMin = clamp((ext[0] ?? 0) - pad, 0, seatTotal);
+  const yMax = clamp((ext[1] ?? seatTotal) + pad, 0, seatTotal);
+  const y = d3.scaleLinear()
+    .domain([yMin, yMax])
+    .range([m.t+ih, m.t])
+    .nice();
+
+  const xAxis = d3.axisBottom(x).ticks(Math.min(6, Math.floor(iw/110))).tickFormat(d3.timeFormat("%b %d"));
+  const yAxis = d3.axisLeft(y).ticks(5).tickFormat(d=>`${Math.round(d)}`);
+
+  svg.append("g").attr("class","oddsAxis").attr("transform",`translate(0,${m.t+ih})`).call(xAxis);
+  svg.append("g").attr("class","oddsAxis").attr("transform",`translate(${m.l},0)`).call(yAxis);
+
+  // Majority line
+  if (isFinite(maj) && maj >= y.domain()[0] && maj <= y.domain()[1]){
+    svg.append("line")
+      .attr("class","seatMajLine")
+      .attr("x1", m.l)
+      .attr("x2", m.l+iw)
+      .attr("y1", y(maj))
+      .attr("y2", y(maj));
+
+    svg.append("text")
+      .attr("class","seatMajLabel")
+      .attr("x", m.l+iw-2)
+      .attr("y", y(maj)-6)
+      .attr("text-anchor","end")
+      .text(`Maj ${maj}`);
+  }
+
+  const line = d3.line()
+    .x(d=>x(d.date))
+    .y(d=>y(d.expDem))
+    .curve(d3.curveMonotoneX);
+
+  svg.append("path")
+    .datum(parsed)
+    .attr("class","seatsLine")
+    .attr("d", line);
+
+  const dot = svg.append("circle")
+    .attr("class","seatsDot")
+    .attr("r", 4)
+    .style("opacity", 0);
+
+  const bisect = d3.bisector(d=>d.date).left;
+
+  svg.append("rect")
+    .attr("x", m.l)
+    .attr("y", m.t)
+    .attr("width", iw)
+    .attr("height", ih)
+    .style("fill","transparent")
+    .style("cursor","crosshair")
+    .on("mousemove", (ev)=>{
+      const [mx] = d3.pointer(ev);
+      const xd = x.invert(mx);
+      const i = clamp(bisect(parsed, xd), 1, parsed.length-1);
+      const a = parsed[i-1], b = parsed[i];
+      const d = (xd - a.date) > (b.date - xd) ? b : a;
+
+      dot
+        .attr("cx", x(d.date))
+        .attr("cy", y(d.expDem))
+        .style("opacity", 1);
+
+      const seats = d.expDem.toFixed(1);
+      const pct = isFinite(d.pDem) ? (d.pDem*100).toFixed(1) : "—";
+
+      showSimTip(ev,
+        `<div><span class="k">${ds(d.date)}</span></div>` +
+        `<div><span class="k">E[D seats]:</span> ${seats}</div>` +
+        `<div><span class="k">P(D control):</span> ${pct}%</div>`
+      );
+    })
+    .on("mouseleave", ()=>{
+      dot.style("opacity", 0);
+      hideSimTip();
+    });
+}
+
+async function runHouseOddsOverTime(range){
+  const ui = UI.house;
+  if (!ui?.comboSvg) return;
+
+  const series = GB_SRC.series || [];
+  if (!series.length){
+    setHouseOddsStatus("No polls.json GB series loaded.");
+    return;
+  }
+
+  let sub = series.slice();
+  const lastDate = parseDate(series[series.length-1].date);
+  if (range !== "all"){
+    const days = parseInt(range, 10);
+    if (isFinite(days) && days > 0){
+      const cutoff = new Date(lastDate);
+      cutoff.setDate(cutoff.getDate() - (days - 1));
+      sub = series.filter(d => parseDate(d.date) >= cutoff);
+    }
+  }
+
+  if (!sub.length){
+    setHouseOddsStatus("No data in selected range.");
+    return;
+  }
+
+  // Inputs
+  const { d: ratioD, r: ratioR } = houseRatioArraysSorted();
+  const dates = sub.map(d=>d.date);
+  const gbD = sub.map(d=>d.dem);
+  const gbR = sub.map(d=>d.rep);
+
+  const worker = ensureHouseOddsWorker();
+  worker.onmessage = (ev)=>{
+    const msg = ev.data || {};
+    if (msg.type === "progress"){
+      setHouseOddsStatus(`Computing… ${msg.day+1}/${msg.total} days`);
+      return;
+    }
+    if (msg.type === "done"){
+      const out = msg.results || [];
+      renderComboChart("house", out);
+      setHouseOddsStatus(`Done • Sims/day: ${HOUSE_MC_SIMS.toLocaleString()} • GB window: last ${GB_SRC.windowPolls} polls • ${GB_SRC.filterStrict ? "Strict Allowlist" : "All Sources"} • End: ${GB_SRC.latest?.date || "—"} • Last poll: ${GB_SRC.lastPollDate || "—"}`);
+      return;
+    }
+  };
+
+  setHouseOddsStatus(`Computing… 0/${sub.length} days`);
+  worker.postMessage({
+    type:"run",
+    dates,
+    gbD,
+    gbR,
+    ratioD: Array.from(ratioD),
+    ratioR: Array.from(ratioR),
+    seatTotal: SEAT_RULES.house.total,
+    majorityLine: SEAT_RULES.house.majorityLine,
+    sims: HOUSE_MC_SIMS,
+    swingRange: HOUSE_MC_SWING_RANGE_PTS,
+    swingStep: 0.1
+  });
+}
+
+async function runStateOddsOverTime(modeKey, range){
+  const ui = UI[modeKey];
+  if (!ui?.comboSvg) return;
+
+  const series = GB_SRC.series || [];
+  if (!series.length){
+    setOddsStatus(modeKey, "No GB series loaded.");
+    return;
+  }
+
+  // Subset by range (days)
+  let sub = series;
+  if (range !== "all"){
+    const days = +range;
+    if (isFinite(days) && days > 0){
+      sub = series.slice(Math.max(0, series.length - days));
+    }
+  }
+
+  if (!sub.length){
+    setOddsStatus(modeKey, "No GB points in selected range.");
+    return;
+  }
+
+  const dates = sub.map(d=>d.date);
+  const gbD = new Float32Array(sub.length);
+  const gbR = new Float32Array(sub.length);
+  for (let i=0;i<sub.length;i++){
+    gbD[i] = +sub[i].dem;
+    gbR[i] = +sub[i].rep;
+  }
+
+  const arr = stateArraysSorted(modeKey);
+  const pm = buildPollMatrixForDays(modeKey, arr.keys, dates, STATE_POLL_SRC.window);
+  const ind = computeIndicatorNationalFromPollMatrix(modeKey, arr, pm, dates.length-1) || computeIndicatorNationalFromPolls(modeKey);
+
+  const rules = SEAT_RULES[modeKey];
+  const total = rules.total;
+  const baseD = rules.baseD;
+  const baseR = rules.baseR;
+  const controlLine = (modeKey === "senate") ? SENATE_CONTROL_RULE.demAtLeast : rules.majorityLine;
+
+  const tieIsDem = (modeKey === "governor");
+  const tieSeat = rules.majorityLine - 1;
+
+  const worker = ensureStateOddsWorker();
+
+  const runLabel = (range === "all") ? "All" : `${range}d`;
+  const runId = (STATE_ODDS_RUNSEQ[modeKey] = (STATE_ODDS_RUNSEQ[modeKey] || 0) + 1);
+
+  setOddsStatus(modeKey, `Running… ${sub.length} points`);
+
+  return new Promise((resolve)=>{
+    STATE_ODDS_PENDING[modeKey] = { runId, rangeLabel: runLabel, resolve };
+
+    worker.postMessage({
+      type:"run",
+      modeKey,
+      runId,
+      dates,
+      gbD,
+      gbR,
+      ratioD: arr.ratioD,
+      ratioR: arr.ratioR,
+      pollD0: arr.pollD,
+      pollR0: arr.pollR,
+      pollDDay: pm ? pm.pollDDay : null,
+      pollRDay: pm ? pm.pollRDay : null,
+      nStates: arr.keys.length,
+      wGb: WEIGHTS.gb,
+      wPoll: WEIGHTS.polls,
+      wInd: WEIGHTS.ind,
+      indD: ind ? ind.D : NaN,
+      indR: ind ? ind.R : NaN,
+      baseD, baseR, total,
+      controlLine,
+      tieIsDem,
+      tieSeat,
+      sims: 10000,
+      swingRange: SENATE_MC_SWING_RANGE_PTS
+    });
+  });
+}
+
+function runOddsOverTime(modeKey, range){
+  if (modeKey === "house") return runHouseOddsOverTime(range);
+  return runStateOddsOverTime(modeKey, range);
+}
+
+function setupOddsUI(modeKey){
+  const ui = UI[modeKey];
+  if (!ui?.comboSvg) return;
+  // controls removed; charts auto-run on load
+}
+
+/* ---------- Boot ---------- */
+(async function boot(){
+  const ok = await loadCSV();
+  if (!ok) return;
+
+  const okHouse = await loadHouseRatios();
+  if (!okHouse) return;
+
+  // Generic ballot from polls.json (produced by poll.html)
+  await loadGenericBallotFromPollsJSON();
+  setupGbControlsUI();
+
+  // Optional: manual state polls by date (state_polls_by_date.csv)
+  await loadStatePollsByDateCSV();
+  applyLatestStatePollsToData();
+  // cache indicators per mode (House intentionally has none)
+  IND_CACHE.senate = computeIndicatorNationalFromPolls("senate");
+  IND_CACHE.governor = computeIndicatorNationalFromPolls("governor");
+  IND_CACHE.house = null;
+
+  // init all panels
+  for (const mode of MODES){
+    initUI(mode);
+  }
+
+  // Odds chart controls
+  for (const mode of MODES){
+    setupOddsUI(mode);
+  }
+  for (const mode of MODES){
+    await initMapForMode(mode);
+    recolorMapForMode(mode);
+    renderBucketTableForMode(mode);
+    updateSeatMeterFor(mode);
+  }
+
+  // Auto-run House odds over time (All)
+  runOddsOverTime("senate", "all");
+  runOddsOverTime("governor", "all");
+  runOddsOverTime("house", "all");
+
+
+  // Redraw tiny histograms on resize (canvas depends on CSS pixels)
+  window.addEventListener("resize", ()=>{
+    for (const mode of MODES){
+      const ui = UI[mode];
+      if (ui?.simCanvas && ui._lastHist){
+        drawSeatSimMini(ui.simCanvas, ui._lastHist, ui._lastMaj);
+      }
+      if (ui?._lastOdds){
+        renderComboChart(mode, ui._lastOdds);
+      }
+    }
+  }, {passive:true});
+})();
+</script>
+</body>
+</html>
